@@ -100,6 +100,14 @@
     font-size: 10px; line-height: 11px; height: 11px;
     white-space: nowrap; overflow: hidden; text-overflow: clip;
   }
+  /* 白い予定：塗りつぶさず、細い枠と灰色の文字で控えめに */
+  .chip.light {
+    background: transparent; color: var(--sub); text-shadow: none;
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .ev-bar.light { box-shadow: inset 0 0 0 1px var(--sub); }
+  .pal-item { box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+  .cat-swatch { box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
   /* 予定が多い日は1行表示（小さい時刻＋タイトルを横に並べる） */
   .chip.compact { padding: 0 3px; }
   .chip.compact .chip-title { display: flex; align-items: baseline; gap: 2px; }
@@ -180,6 +188,7 @@
   .colors { display: flex; gap: 10px; flex-wrap: wrap; }
   .color {
     width: 30px; height: 30px; border-radius: 15px; position: relative;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); /* 白い色も見えるように */
   }
   .color.on::after {
     content: ""; position: absolute; inset: -4px; border-radius: 50%;
@@ -559,7 +568,8 @@ const PRESET_COLORS = [
   "#e07b39", // オレンジ
   "#d0698a", // ピンク
   "#8b6f5a", // 茶
-  "#6f7c8a"  // グレー
+  "#6f7c8a", // グレー
+  "#ffffff"  // 白（控えめな予定。カレンダーでは目立たない1行で表示）
 ];
 const LEGACY_COLORS = {
   blue: "#3a72d8", red: "#e5484d", orange: "#e8822e",
@@ -582,7 +592,8 @@ function normColorPrefs(p) {
   const palette = Array.isArray(p.palette)
     ? [...new Set(p.palette.filter(isHex).map((c) => c.toLowerCase()))]
     : [...PRESET_COLORS];
-  return { categories, palette, updatedAt: p.updatedAt || 0 };
+  if (Array.isArray(p.palette) && !p.whiteAdded && !palette.includes("#ffffff")) palette.push("#ffffff");
+  return { categories, palette, updatedAt: p.updatedAt || 0, whiteAdded: true };
 }
 let colorPrefs = normColorPrefs(load(KEY_COLORS, null));
 
@@ -591,6 +602,12 @@ const defaultColor = () => colorForCategory("other");
 function colorHex(v) {
   if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
   return LEGACY_COLORS[v] || DEFAULT_COLOR;
+}
+// 白に近い色（控えめな予定として扱う）
+function isLightColor(hex) {
+  const h = colorHex(hex);
+  const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 235;
 }
 // 背景色に合わせて文字色（白か黒）を選ぶ
 function textOn(hex) {
@@ -1110,26 +1127,30 @@ function render() {
       let timeText = e.start || "";
       if (e.pos === "middle") timeText = e.start ? "続き" : "";
       if (e.pos === "last") timeText = e.start ? (e.end ? `〜${e.end}` : "続き") : "";
-      return { e, timeText };
+      return { e, timeText, light: isLightColor(e.color) };
     });
-    // 2段表示で全部入らない日は、1行表示に切り替える
-    const fullH = evs.reduce((sum, x) => sum + (x.timeText ? CHIP_TIMED : CHIP_ALLDAY) + CHIP_GAP, 0);
+    // 白い予定（控えめな予定）は最後に並べ、入りきらないときは先に「+N」へ回す
+    evs.sort((a, b) => a.light - b.light);
+    // 2段表示で全部入らない日は、1行表示に切り替える（白い予定はいつも1行）
+    const fullH = evs.reduce((sum, x) =>
+      sum + (x.light ? CHIP_COMPACT : x.timeText ? CHIP_TIMED : CHIP_ALLDAY) + CHIP_GAP, 0);
     const compact = fullH > avail;
     let used = 0, shown = 0;
     for (let j = 0; j < evs.length; j++) {
-      const { e, timeText } = evs[j];
-      const h = (compact ? CHIP_COMPACT : (timeText ? CHIP_TIMED : CHIP_ALLDAY)) + CHIP_GAP;
+      const { e, timeText, light } = evs[j];
+      const one = compact || light; // 1行で表示するか
+      const h = (one ? CHIP_COMPACT : (timeText ? CHIP_TIMED : CHIP_ALLDAY)) + CHIP_GAP;
       const rest = evs.length - j - 1;
       if (used + h + (rest > 0 ? MORE_H + CHIP_GAP : 0) > avail) break;
       used += h;
       shown++;
       const chip = document.createElement("div");
-      chip.className = "chip" + (compact ? " compact" : "");
-      chip.style.background = colorHex(e.color);
+      chip.className = "chip" + (one ? " compact" : "") + (light ? " light" : "");
+      if (!light) chip.style.background = colorHex(e.color);
       if (e.pos === "middle" || e.pos === "last") chip.classList.add("cont");
       const ti = document.createElement("div");
       ti.className = "chip-title";
-      if (compact) {
+      if (one) {
         if (timeText) {
           const t = document.createElement("span");
           t.className = "chip-time-inline";
@@ -1187,7 +1208,7 @@ function renderDay() {
     const row = document.createElement("button");
     row.className = "ev";
     const bar = document.createElement("div");
-    bar.className = "ev-bar";
+    bar.className = "ev-bar" + (isLightColor(e.color) ? " light" : "");
     bar.style.background = colorHex(e.color);
     const time = document.createElement("div");
     time.className = "ev-time";
@@ -2592,7 +2613,7 @@ function qRow(dateText, e, onClick) {
   const row = document.createElement("button");
   row.className = "q-row";
   const bar = document.createElement("div");
-  bar.className = "ev-bar";
+  bar.className = "ev-bar" + (isLightColor(e.color) ? " light" : "");
   bar.style.background = colorHex(e.color);
   const dt = document.createElement("div");
   dt.className = "q-date";
@@ -2708,7 +2729,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v3.6";
+const APP_VERSION = "v3.7";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
