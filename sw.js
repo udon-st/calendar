@@ -1,5 +1,5 @@
 // オフライン用のキャッシュ。ファイルを更新したら VERSION を上げる
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = "calendar-" + VERSION;
 const FILES = [
   "./",

@@ -37,14 +37,14 @@
   html, body { margin: 0; background: var(--bg); color: var(--fg); }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
-    padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 96px);
+    padding: env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 96px);
     -webkit-user-select: none; user-select: none;
   }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
   input, textarea { font: inherit; color: var(--fg); -webkit-user-select: text; user-select: text; }
 
   /* ヘッダー */
-  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 10px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 4px 10px; }
   .month { font-size: 22px; font-weight: 700; letter-spacing: .02em; }
   .nav { display: flex; gap: 4px; align-items: center; }
   .icon-btn { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; font-size: 18px; color: var(--sub); }
@@ -53,25 +53,38 @@
   .text-btn:active { background: var(--soft); }
 
   /* カレンダー */
-  .weekdays, .grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .weekdays, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
   .weekdays div { text-align: center; font-size: 11px; color: var(--sub); padding: 6px 0; }
   .weekdays div:first-child { color: var(--sun); }
   .weekdays div:last-child { color: var(--sat); }
-  .cell { height: 52px; display: flex; flex-direction: column; align-items: center; padding-top: 6px; gap: 4px; }
-  .num { width: 30px; height: 30px; border-radius: 15px; display: grid; place-items: center; font-size: 15px; }
+  .cell {
+    min-height: 78px; display: flex; flex-direction: column; align-items: stretch;
+    padding: 3px 1px 4px; gap: 2px; border-top: 1px solid var(--line); overflow: hidden;
+  }
+  .num {
+    width: 24px; height: 24px; border-radius: 12px; display: grid; place-items: center;
+    font-size: 13px; margin: 0 auto 1px;
+  }
   .cell.sun .num { color: var(--sun); }
   .cell.sat .num { color: var(--sat); }
   .cell.out .num { color: var(--line); }
+  .cell.out .chip { opacity: .35; }
   .cell.today .num { color: var(--accent); font-weight: 700; }
   .cell.sel .num { background: var(--fg); color: var(--bg); font-weight: 700; }
-  .dots { display: flex; gap: 3px; height: 5px; }
-  .dot { width: 5px; height: 5px; border-radius: 3px; background: var(--sub); }
+  .chip {
+    display: block; width: 100%; font-size: 9.5px; line-height: 14px; height: 14px;
+    padding: 0 3px; border-radius: 3px; color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: clip; text-align: left;
+  }
+  .chip b { font-weight: 600; }
+  .more { font-size: 9px; color: var(--sub); text-align: center; line-height: 12px; }
 
   /* 選択日の予定 */
-  .day { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 16px; }
+  .day { border-top: 1px solid var(--line); margin-top: 4px; padding: 16px 4px 0; }
   .day-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-  .ev { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); width: 100%; text-align: left; }
-  .ev-time { width: 52px; flex: none; font-size: 13px; color: var(--sub); line-height: 1.4; font-variant-numeric: tabular-nums; }
+  .ev { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); width: 100%; text-align: left; align-items: stretch; }
+  .ev-bar { width: 4px; border-radius: 2px; flex: none; }
+  .ev-time { width: 48px; flex: none; font-size: 13px; color: var(--sub); line-height: 1.4; font-variant-numeric: tabular-nums; white-space: pre; }
   .ev-body { flex: 1; min-width: 0; }
   .ev-title { font-size: 15px; line-height: 1.4; word-break: break-word; }
   .ev-memo { font-size: 12px; color: var(--sub); margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
@@ -97,10 +110,10 @@
     border: 0; padding: 0; width: 100%; max-width: 560px;
     margin: auto auto 0; border-radius: 18px 18px 0 0;
     background: var(--bg); color: var(--fg);
-    max-height: 88vh;
+    max-height: 90vh;
   }
   dialog::backdrop { background: rgba(0,0,0,.35); }
-  .sheet { padding: 18px 16px calc(env(safe-area-inset-bottom) + 18px); overflow-y: auto; max-height: 88vh; }
+  .sheet { padding: 18px 16px calc(env(safe-area-inset-bottom) + 18px); overflow-y: auto; max-height: 90vh; }
   .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
   .sheet-head h2 { font-size: 17px; margin: 0; }
   label { display: block; font-size: 12px; color: var(--sub); margin: 12px 0 4px; }
@@ -117,13 +130,39 @@
   .btn:disabled { opacity: .4; }
   .note { font-size: 12px; color: var(--sub); line-height: 1.6; margin-top: 10px; }
 
-  /* 読み取り結果 */
-  .cand { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; margin-bottom: 10px; }
-  .cand.off { opacity: .45; }
-  .cand-head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); }
-  .cand-head input { width: 20px; height: 20px; accent-color: var(--fg); }
-  .cand label { margin-top: 8px; }
-  .cand .field { padding: 8px 10px; font-size: 16px; }
+  /* 色の選択 */
+  .colors { display: flex; gap: 10px; flex-wrap: wrap; }
+  .color {
+    width: 30px; height: 30px; border-radius: 15px; position: relative;
+  }
+  .color.on::after {
+    content: ""; position: absolute; inset: -4px; border-radius: 50%;
+    border: 2px solid var(--fg);
+  }
+
+  /* 読み取り結果（チェックリスト） */
+  .thumbs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; }
+  .thumbs img { height: 80px; border-radius: 8px; border: 1px solid var(--line); }
+  .select-all { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--sub); margin-bottom: 4px; }
+  .select-all button { color: var(--sub); text-decoration: underline; }
+  .cand { border-bottom: 1px solid var(--line); }
+  .cand-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+  .check {
+    width: 24px; height: 24px; flex: none; border-radius: 6px;
+    border: 2px solid var(--sub); display: grid; place-items: center;
+    color: var(--bg); font-size: 15px; font-weight: 700;
+  }
+  .cand.on .check { background: var(--fg); border-color: var(--fg); }
+  .cand-bar { width: 4px; align-self: stretch; border-radius: 2px; flex: none; }
+  .cand-main { flex: 1; min-width: 0; text-align: left; }
+  .cand-when { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  .cand-title { font-size: 15px; line-height: 1.4; word-break: break-word; }
+  .cand:not(.on) .cand-main { opacity: .45; }
+  .cand-edit-btn { font-size: 13px; color: var(--sub); padding: 6px 4px; flex: none; }
+  .cand-detail { padding: 0 0 14px 36px; }
+  .cand-detail .field { padding: 8px 10px; }
+  .cand-detail label { margin-top: 8px; }
+  .submit-bar { position: sticky; bottom: 0; background: var(--bg); padding-top: 12px; }
 
   .loading { text-align: center; padding: 32px 0; color: var(--sub); font-size: 14px; }
   .spinner {
@@ -132,8 +171,6 @@
     animation: spin .8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .thumbs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; }
-  .thumbs img { height: 90px; border-radius: 8px; border: 1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -179,6 +216,8 @@
       <div><label>開始</label><input class="field" id="fStart" type="time"></div>
       <div><label>終了</label><input class="field" id="fEnd" type="time"></div>
     </div>
+    <label>色</label>
+    <div class="colors" id="fColors"></div>
     <label>メモ</label>
     <textarea class="field" id="fMemo" rows="2" placeholder="場所など"></textarea>
     <div class="actions">
@@ -198,9 +237,11 @@
     </div>
     <div class="thumbs" id="thumbs"></div>
     <div id="importBody"></div>
-    <div class="actions" id="importActions" hidden>
-      <button class="btn" data-close>キャンセル</button>
-      <button class="btn primary" id="importAddBtn">追加</button>
+    <div class="submit-bar" id="importActions" hidden>
+      <div class="actions" style="margin-top:0">
+        <button class="btn" data-close>キャンセル</button>
+        <button class="btn primary" id="importAddBtn">追加</button>
+      </div>
     </div>
   </div>
 </dialog>
@@ -231,6 +272,36 @@
 </dialog>
 
 <script>
+// ===== 色 =====
+const COLORS = [
+  { id: "blue",   hex: "#3a72d8" },
+  { id: "red",    hex: "#e5484d" },
+  { id: "orange", hex: "#e8822e" },
+  { id: "green",  hex: "#2f9e6a" },
+  { id: "purple", hex: "#8e4ec6" },
+  { id: "gray",   hex: "#7d7d7d" }
+];
+const DEFAULT_COLOR = "blue";
+const colorHex = (id) => (COLORS.find((c) => c.id === id) || COLORS[0]).hex;
+
+// 色を選ぶ丸ボタンを作る。onPick(id) で選んだ色を返す
+function buildColorPicker(container, current, onPick) {
+  container.innerHTML = "";
+  for (const c of COLORS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "color" + (c.id === current ? " on" : "");
+    b.style.background = c.hex;
+    b.setAttribute("aria-label", c.id);
+    b.onclick = () => {
+      container.querySelectorAll(".color").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+      onPick(c.id);
+    };
+    container.appendChild(b);
+  }
+}
+
 // ===== 保存まわり =====
 const KEY_EVENTS = "cal-events";
 const KEY_API = "cal-apikey";
@@ -247,7 +318,8 @@ function save(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
-let events = load(KEY_EVENTS, []); // {id, date:"YYYY-MM-DD", start:"HH:MM", end:"HH:MM", title, memo}
+// {id, date:"YYYY-MM-DD", start:"HH:MM", end:"HH:MM", title, memo, color}
+let events = load(KEY_EVENTS, []).map((e) => ({ color: DEFAULT_COLOR, ...e }));
 function persist() { save(KEY_EVENTS, events); }
 
 // ===== 日付ユーティリティ =====
@@ -257,7 +329,17 @@ const todayStr = () => ymd(new Date());
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
 function parseYmd(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function fmtDate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "日付なし";
+  const d = parseYmd(s);
+  return `${d.getMonth() + 1}/${d.getDate()}（${WD[d.getDay()]}）`;
+}
+function fmtTime(e) {
+  if (!e.start) return "終日";
+  return e.end ? `${e.start}〜${e.end}` : e.start;
+}
 
+// 終日の予定を先に、そのあと開始時刻順
 function eventsOn(date) {
   return events
     .filter((e) => e.date === date)
@@ -267,6 +349,7 @@ function eventsOn(date) {
 // ===== 画面描画 =====
 let viewYear, viewMonth; // 表示中の年・月(0始まり)
 let selected = todayStr();
+const MAX_CHIPS = 3;
 
 const $ = (id) => document.getElementById(id);
 
@@ -292,15 +375,30 @@ function render() {
     const num = document.createElement("div");
     num.className = "num";
     num.textContent = d.getDate();
-    const dots = document.createElement("div");
-    dots.className = "dots";
-    const n = Math.min(eventsOn(ds).length, 3);
-    for (let k = 0; k < n; k++) {
-      const dot = document.createElement("div");
-      dot.className = "dot";
-      dots.appendChild(dot);
+    cell.appendChild(num);
+
+    const evs = eventsOn(ds);
+    const shown = evs.length > MAX_CHIPS ? MAX_CHIPS - 1 : evs.length;
+    for (const e of evs.slice(0, shown)) {
+      const chip = document.createElement("div");
+      chip.className = "chip";
+      chip.style.background = colorHex(e.color);
+      if (e.start) {
+        const b = document.createElement("b");
+        b.textContent = e.start;
+        chip.append(b, " " + (e.title || ""));
+      } else {
+        chip.textContent = e.title || "（無題）";
+      }
+      cell.appendChild(chip);
     }
-    cell.append(num, dots);
+    if (evs.length > shown) {
+      const more = document.createElement("div");
+      more.className = "more";
+      more.textContent = `+${evs.length - shown}`;
+      cell.appendChild(more);
+    }
+
     cell.onclick = () => {
       selected = ds;
       if (d.getMonth() !== viewMonth) { viewYear = d.getFullYear(); viewMonth = d.getMonth(); }
@@ -324,10 +422,12 @@ function renderDay() {
   for (const e of evs) {
     const row = document.createElement("button");
     row.className = "ev";
+    const bar = document.createElement("div");
+    bar.className = "ev-bar";
+    bar.style.background = colorHex(e.color);
     const time = document.createElement("div");
     time.className = "ev-time";
     time.textContent = e.start ? (e.end ? `${e.start}\n〜${e.end}` : e.start) : "終日";
-    time.style.whiteSpace = "pre";
     const body = document.createElement("div");
     body.className = "ev-body";
     const t = document.createElement("div");
@@ -340,7 +440,7 @@ function renderDay() {
       m.textContent = e.memo;
       body.appendChild(m);
     }
-    row.append(time, body);
+    row.append(bar, time, body);
     row.onclick = () => openEdit(e);
     list.appendChild(row);
   }
@@ -352,17 +452,27 @@ function goMonth(delta) {
   render();
 }
 
+function jumpTo(date) {
+  selected = date;
+  const d = parseYmd(date);
+  viewYear = d.getFullYear(); viewMonth = d.getMonth();
+  render();
+}
+
 // ===== 予定の追加・編集 =====
 let editingId = null;
+let editingColor = DEFAULT_COLOR;
 
 function openEdit(ev) {
   editingId = ev ? ev.id : null;
+  editingColor = ev ? (ev.color || DEFAULT_COLOR) : DEFAULT_COLOR;
   $("editTitle").textContent = ev ? "予定を編集" : "予定を追加";
   $("fTitle").value = ev ? ev.title : "";
   $("fDate").value = ev ? ev.date : selected;
   $("fStart").value = ev ? ev.start : "";
   $("fEnd").value = ev ? ev.end : "";
   $("fMemo").value = ev ? ev.memo : "";
+  buildColorPicker($("fColors"), editingColor, (id) => { editingColor = id; });
   $("deleteBtn").hidden = !ev;
   $("editDlg").showModal();
 }
@@ -373,7 +483,8 @@ $("saveBtn").onclick = () => {
     date: $("fDate").value,
     start: $("fStart").value,
     end: $("fEnd").value,
-    memo: $("fMemo").value.trim()
+    memo: $("fMemo").value.trim(),
+    color: editingColor
   };
   if (!data.date) { alert("日付を入れてください"); return; }
   if (editingId) {
@@ -383,11 +494,8 @@ $("saveBtn").onclick = () => {
     events.push({ id: uid(), ...data });
   }
   persist();
-  selected = data.date;
-  const d = parseYmd(data.date);
-  viewYear = d.getFullYear(); viewMonth = d.getMonth();
   $("editDlg").close();
-  render();
+  jumpTo(data.date);
 };
 
 $("deleteBtn").onclick = () => {
@@ -497,50 +605,113 @@ async function extractEvents(base64List) {
     }));
 }
 
+// 読み取った候補 {date,start,end,title,memo,color,on,open}
 let candidates = [];
+
+function updateImportButton() {
+  const n = candidates.filter((c) => c.on).length;
+  const btn = $("importAddBtn");
+  btn.textContent = n ? `選択した${n}件を追加` : "追加";
+  btn.disabled = n === 0;
+  const all = $("selectAllBtn");
+  if (all) all.textContent = n === candidates.length ? "すべて解除" : "すべて選択";
+  const count = $("selectCount");
+  if (count) count.textContent = `${candidates.length}件見つかりました（${n}件選択中）`;
+}
 
 function renderCandidates() {
   const body = $("importBody");
   body.innerHTML = "";
+  $("importActions").hidden = false;
+
   if (candidates.length === 0) {
     body.innerHTML = '<div class="loading">予定が見つかりませんでした</div>';
-    $("importActions").hidden = false;
-    $("importAddBtn").disabled = true;
+    updateImportButton();
     return;
   }
-  candidates.forEach((c, i) => {
+
+  const head = document.createElement("div");
+  head.className = "select-all";
+  head.innerHTML = '<span id="selectCount"></span><button id="selectAllBtn"></button>';
+  body.appendChild(head);
+  head.querySelector("#selectAllBtn").onclick = () => {
+    const allOn = candidates.every((c) => c.on);
+    candidates.forEach((c) => { c.on = !allOn; });
+    renderCandidates();
+  };
+
+  candidates.forEach((c) => {
     const box = document.createElement("div");
-    box.className = "cand" + (c.on ? "" : " off");
-    box.innerHTML = `
-      <div class="cand-head">
-        <input type="checkbox" ${c.on ? "checked" : ""}>
-        <span>${i + 1}件目</span>
-      </div>
-      <label>タイトル</label>
-      <input class="field" data-k="title">
-      <div class="row">
-        <div><label>日付</label><input class="field" type="date" data-k="date"></div>
-      </div>
-      <div class="row">
-        <div><label>開始</label><input class="field" type="time" data-k="start"></div>
-        <div><label>終了</label><input class="field" type="time" data-k="end"></div>
-      </div>
-      <label>メモ</label>
-      <input class="field" data-k="memo">`;
-    box.querySelectorAll("[data-k]").forEach((inp) => {
-      inp.value = c[inp.dataset.k];
-      inp.oninput = () => { c[inp.dataset.k] = inp.value; };
-    });
-    const cb = box.querySelector('input[type="checkbox"]');
-    cb.onchange = () => {
-      c.on = cb.checked;
-      box.classList.toggle("off", !c.on);
-      $("importAddBtn").disabled = !candidates.some((x) => x.on);
+    box.className = "cand" + (c.on ? " on" : "");
+
+    // 1行目：チェック・色・日時・タイトル・編集
+    const row = document.createElement("div");
+    row.className = "cand-row";
+    const check = document.createElement("button");
+    check.className = "check";
+    check.textContent = "✓";
+    const bar = document.createElement("div");
+    bar.className = "cand-bar";
+    bar.style.background = colorHex(c.color);
+    const main = document.createElement("button");
+    main.className = "cand-main";
+    const when = document.createElement("div");
+    when.className = "cand-when";
+    when.textContent = `${fmtDate(c.date)}　${fmtTime(c)}`;
+    const title = document.createElement("div");
+    title.className = "cand-title";
+    title.textContent = c.title || "（無題）";
+    main.append(when, title);
+    const editBtn = document.createElement("button");
+    editBtn.className = "cand-edit-btn";
+    editBtn.textContent = c.open ? "閉じる" : "編集";
+    row.append(check, bar, main, editBtn);
+    box.appendChild(row);
+
+    const toggle = () => {
+      c.on = !c.on;
+      box.classList.toggle("on", c.on);
+      updateImportButton();
     };
+    check.onclick = toggle;
+    main.onclick = toggle;
+    editBtn.onclick = () => { c.open = !c.open; renderCandidates(); };
+
+    // 2行目：編集欄（「編集」を押したときだけ表示）
+    if (c.open) {
+      const detail = document.createElement("div");
+      detail.className = "cand-detail";
+      detail.innerHTML = `
+        <label>タイトル</label>
+        <input class="field" data-k="title">
+        <label>日付</label>
+        <input class="field" type="date" data-k="date">
+        <div class="row">
+          <div><label>開始</label><input class="field" type="time" data-k="start"></div>
+          <div><label>終了</label><input class="field" type="time" data-k="end"></div>
+        </div>
+        <label>色</label>
+        <div class="colors"></div>
+        <label>メモ</label>
+        <input class="field" data-k="memo">`;
+      detail.querySelectorAll("[data-k]").forEach((inp) => {
+        inp.value = c[inp.dataset.k];
+        inp.oninput = () => {
+          c[inp.dataset.k] = inp.value;
+          when.textContent = `${fmtDate(c.date)}　${fmtTime(c)}`;
+          title.textContent = c.title || "（無題）";
+        };
+      });
+      buildColorPicker(detail.querySelector(".colors"), c.color, (id) => {
+        c.color = id;
+        bar.style.background = colorHex(id);
+      });
+      box.appendChild(detail);
+    }
+
     body.appendChild(box);
   });
-  $("importActions").hidden = false;
-  $("importAddBtn").disabled = !candidates.some((x) => x.on);
+  updateImportButton();
 }
 
 async function handleFiles(files) {
@@ -566,7 +737,7 @@ async function handleFiles(files) {
       b64.push(imageToBase64(img));
     }
     const found = await extractEvents(b64);
-    candidates = found.map((x) => ({ ...x, on: true }));
+    candidates = found.map((x) => ({ ...x, color: DEFAULT_COLOR, on: true, open: false }));
     renderCandidates();
   } catch (err) {
     $("importBody").innerHTML = "";
@@ -583,14 +754,16 @@ $("importAddBtn").onclick = () => {
   const picked = candidates.filter((c) => c.on && c.date);
   if (!picked.length) return;
   for (const c of picked) {
-    events.push({ id: uid(), date: c.date, start: c.start, end: c.end, title: c.title, memo: c.memo });
+    events.push({
+      id: uid(), date: c.date, start: c.start, end: c.end,
+      title: c.title, memo: c.memo, color: c.color
+    });
   }
   persist();
-  selected = picked[0].date;
-  const d = parseYmd(selected);
-  viewYear = d.getFullYear(); viewMonth = d.getMonth();
   $("importDlg").close();
-  render();
+  // いちばん早い日付の月を表示する
+  const first = picked.map((c) => c.date).sort()[0];
+  jumpTo(first);
 };
 
 $("shotBtn").onclick = () => $("fileInput").click();
@@ -615,7 +788,7 @@ $("sSaveBtn").onclick = () => {
 
 // データの書き出し・読み込み（バックアップ用）
 $("exportBtn").onclick = async () => {
-  const json = JSON.stringify({ version: 1, events }, null, 2);
+  const json = JSON.stringify({ version: 2, events }, null, 2);
   const name = `calendar-${todayStr()}.json`;
   const file = new File([json], name, { type: "application/json" });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -638,7 +811,7 @@ $("jsonInput").onchange = async (e) => {
     if (!confirm(`${list.length}件の予定を読み込みます。今の予定は置き換えられます。よろしいですか？`)) return;
     events = list.map((x) => ({
       id: x.id || uid(), date: x.date, start: x.start || "", end: x.end || "",
-      title: x.title || "", memo: x.memo || ""
+      title: x.title || "", memo: x.memo || "", color: x.color || DEFAULT_COLOR
     }));
     persist();
     render();
@@ -659,12 +832,7 @@ document.querySelectorAll("dialog").forEach((dlg) => {
 
 $("prevBtn").onclick = () => goMonth(-1);
 $("nextBtn").onclick = () => goMonth(1);
-$("todayBtn").onclick = () => {
-  const t = new Date();
-  viewYear = t.getFullYear(); viewMonth = t.getMonth();
-  selected = todayStr();
-  render();
-};
+$("todayBtn").onclick = () => jumpTo(todayStr());
 $("addBtn").onclick = () => openEdit(null);
 
 // 左右スワイプで月移動
@@ -681,11 +849,7 @@ $("grid").addEventListener("touchend", (e) => {
 });
 
 // 初期表示
-(() => {
-  const t = new Date();
-  viewYear = t.getFullYear(); viewMonth = t.getMonth();
-  render();
-})();
+jumpTo(todayStr());
 
 // オフライン対応
 if ("serviceWorker" in navigator) {
