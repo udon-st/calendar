@@ -291,31 +291,45 @@
     </div>
     <input type="file" id="jsonInput" accept="application/json,.json" hidden>
     <p class="note">予定はこの端末の中に保存されています。機種変更やデータ消去に備えて、ときどき書き出しておくと安心です。</p>
+    <label style="margin-top:24px">アプリ</label>
+    <div class="actions" style="margin-top:4px">
+      <button class="btn" id="updateBtn">最新版に更新</button>
+    </div>
+    <p class="note" id="versionNote"></p>
   </div>
 </dialog>
 
 <script>
 // ===== 色 =====
 // 色は "#rrggbb" で保存する（以前の "blue" などの名前も読めるようにしておく）
+// 予定の種類ごとの色（スクショ読み取り時にAIが種類を判定してこの色にする）
+const CATEGORY_COLORS = {
+  circle:   "#5aa9d6", // サークル：水色
+  work:     "#9ccc3c", // バイト：黄緑
+  event:    "#8a63b8", // ライブ・フォーマルな用事：紫
+  deadline: "#d0544e", // 重要な締め切り：赤
+  other:    "#3f72b5"  // その他：青
+};
+// 落ち着いていて見やすい色（先頭5色は種類の色と同じ）
 const PRESET_COLORS = [
-  "#3a72d8", // 青
-  "#4aa3df", // 水色
-  "#2fa7a0", // ティール
-  "#2f9e6a", // 緑
-  "#8bb33a", // 黄緑
-  "#e0b100", // 黄
-  "#e8822e", // オレンジ
-  "#e5484d", // 赤
-  "#e0607e", // ピンク
-  "#8e4ec6", // 紫
-  "#8d6e63", // 茶
-  "#7d7d7d"  // グレー
+  "#5aa9d6", // 水色（サークル）
+  "#9ccc3c", // 黄緑（バイト）
+  "#8a63b8", // 紫（ライブ・フォーマル）
+  "#d0544e", // 赤（締め切り）
+  "#3f72b5", // 青（その他）
+  "#2e9488", // 青緑
+  "#d8a520", // からし色
+  "#e07b39", // オレンジ
+  "#d0698a", // ピンク
+  "#8b6f5a", // 茶
+  "#6f7c8a"  // グレー
 ];
 const LEGACY_COLORS = {
   blue: "#3a72d8", red: "#e5484d", orange: "#e8822e",
   green: "#2f9e6a", purple: "#8e4ec6", gray: "#7d7d7d"
 };
-const DEFAULT_COLOR = PRESET_COLORS[0];
+const DEFAULT_COLOR = CATEGORY_COLORS.other;
+const colorForCategory = (cat) => CATEGORY_COLORS[cat] || CATEGORY_COLORS.other;
 function colorHex(v) {
   if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
   return LEGACY_COLORS[v] || DEFAULT_COLOR;
@@ -365,16 +379,6 @@ function buildColorPicker(container, current, onPick) {
   container.appendChild(custom);
 }
 
-// グループ名 → 色 の対応（同じサークルは毎回同じ色にする）
-const KEY_GROUPS = "cal-group-colors";
-let groupColors = load(KEY_GROUPS, {});
-function colorForGroup(group, usedInBatch) {
-  if (!group) return DEFAULT_COLOR;
-  if (groupColors[group]) return colorHex(groupColors[group]);
-  const used = new Set([...Object.values(groupColors).map(colorHex), ...usedInBatch]);
-  return PRESET_COLORS.find((c) => !used.has(c)) ||
-    PRESET_COLORS[Object.keys(groupColors).length % PRESET_COLORS.length];
-}
 
 // ===== 保存まわり =====
 const KEY_EVENTS = "cal-events";
@@ -564,14 +568,7 @@ $("saveBtn").onclick = () => {
   if (!data.date) { alert("日付を入れてください"); return; }
   if (editingId) {
     const i = events.findIndex((e) => e.id === editingId);
-    if (i >= 0) {
-      events[i] = { ...events[i], ...data };
-      // サークルの予定なら、次回の読み取りからこの色を使う
-      if (events[i].group) {
-        groupColors[events[i].group] = data.color;
-        save(KEY_GROUPS, groupColors);
-      }
-    }
+    if (i >= 0) events[i] = { ...events[i], ...data };
   } else {
     events.push({ id: uid(), ...data });
   }
@@ -759,13 +756,24 @@ LINEなどのグループトークで、次のような書き方の一覧はサ�
 - group にも同じグループ名を入れてください。
 - 時間帯のあとにある文字（例：「もたきゅ×」「ゆ×なべ△」「まる定期練」「（15-17みブ）まる×」）は、加工せずそのまま memo に入れてください。
 - 会話の中の「11/9とか？」のような提案や相談は予定にせず、日程の一覧として書かれたものだけを出してください。
+- category は "circle" にしてください。
 
-【それ以外の形式】
+【バイトのシフト】
+シフト表、シフトの連絡、勤務日の一覧などはバイトの予定です。
+- title は「バイト」にしてください（店名や勤務先がはっきり書かれていれば「バイト（店名）」）。
+- 持ち場・休憩・補足などは memo に入れてください。
+- category は "work" にしてください。
+
+【それ以外】
 - title は短く（例：「ゼミ」「歯医者」「レポート締切」）。場所や持ち物などの補足は memo に入れてください。
 - group は空文字にしてください。
+- category は次から選んでください。
+  - "event"：ライブ、コンサート、式典、面接、説明会などのフォーマルな用事
+  - "deadline"：提出期限、申込締切などの重要な締め切り
+  - "other"：上のどれにも当てはまらないもの
 
 次のJSONだけを出力してください（説明文やコードブロックは不要）：
-{"events":[{"date":"YYYY-MM-DD","start":"HH:MM","end":"HH:MM","title":"...","memo":"...","group":"..."}]}`;
+{"events":[{"date":"YYYY-MM-DD","start":"HH:MM","end":"HH:MM","title":"...","memo":"...","group":"...","category":"circle|work|event|deadline|other"}]}`;
 }
 
 async function extractEvents(base64List) {
@@ -820,7 +828,8 @@ async function extractEvents(base64List) {
       end: /^\d{2}:\d{2}$/.test(x.end || "") ? x.end : "",
       title: String(x.title || "").replace(/\s*[(（]\d+[)）]\s*$/, "").trim(),
       memo: String(x.memo || "").trim(),
-      group: String(x.group || "").replace(/\s*[(（]\d+[)）]\s*$/, "").trim()
+      group: String(x.group || "").replace(/\s*[(（]\d+[)）]\s*$/, "").trim(),
+      category: ["circle", "work", "event", "deadline", "other"].includes(x.category) ? x.category : "other"
     }));
 }
 
@@ -923,13 +932,8 @@ function renderCandidates() {
         };
       });
       buildColorPicker(detail.querySelector(".colors"), c.color, (hex) => {
-        // 同じグループの予定はまとめて同じ色にする
-        candidates.forEach((x) => {
-          if (x === c || (c.group && x.group === c.group)) {
-            x.color = hex;
-            if (x.bar) x.bar.style.background = hex;
-          }
-        });
+        c.color = hex;
+        bar.style.background = hex;
       });
       box.appendChild(detail);
     }
@@ -963,16 +967,10 @@ async function handleFiles(files) {
       b64.push(imageToBase64(img));
     }
     const found = await extractEvents(b64);
-    // 同じグループは同じ色に。初めてのグループにはまだ使っていない色を割り当てる
-    const batch = {};
-    candidates = found.map((x) => {
-      let color = DEFAULT_COLOR;
-      if (x.group) {
-        if (!batch[x.group]) batch[x.group] = colorForGroup(x.group, Object.values(batch));
-        color = batch[x.group];
-      }
-      return { ...x, color, on: true, open: false };
-    });
+    // 種類（サークル・バイトなど）ごとの色にする
+    candidates = found.map((x) => ({
+      ...x, color: colorForCategory(x.category), on: true, open: false
+    }));
     renderCandidates();
   } catch (err) {
     $("importBody").innerHTML = "";
@@ -990,15 +988,11 @@ $("importAddBtn").onclick = () => {
   if (!picked.length) return;
   const added = picked.map((c) => ({
     id: uid(), date: c.date, start: c.start, end: c.end,
-    title: c.title, memo: c.memo, color: c.color, group: c.group || ""
+    title: c.title, memo: c.memo, color: c.color,
+    group: c.group || "", category: c.category || "other"
   }));
   events.push(...added);
   persist();
-  // グループの色を覚えておく（次回も同じ色にする）
-  for (const c of picked) {
-    if (c.group) groupColors[c.group] = c.color;
-  }
-  save(KEY_GROUPS, groupColors);
   const toIos = $("icsToggle").checked;
   save(KEY_ICS, toIos);
   $("importDlg").close();
@@ -1031,7 +1025,7 @@ $("sSaveBtn").onclick = () => {
 
 // データの書き出し・読み込み（バックアップ用）
 $("exportBtn").onclick = async () => {
-  const json = JSON.stringify({ version: 3, events, groupColors }, null, 2);
+  const json = JSON.stringify({ version: 4, events }, null, 2);
   const name = `calendar-${todayStr()}.json`;
   const file = new File([json], name, { type: "application/json" });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -1055,13 +1049,9 @@ $("jsonInput").onchange = async (e) => {
     events = list.map((x) => ({
       id: x.id || uid(), date: x.date, start: x.start || "", end: x.end || "",
       title: x.title || "", memo: x.memo || "", color: x.color || DEFAULT_COLOR,
-      group: x.group || ""
+      group: x.group || "", category: x.category || "other"
     }));
     persist();
-    if (data && data.groupColors && typeof data.groupColors === "object") {
-      groupColors = data.groupColors;
-      save(KEY_GROUPS, groupColors);
-    }
     render();
     $("settingsDlg").close();
   } catch {
@@ -1099,12 +1089,41 @@ $("grid").addEventListener("touchend", (e) => {
 // 初期表示
 jumpTo(todayStr());
 
-// オフライン対応
+// ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
+const APP_VERSION = "v1.7";
+$("versionNote").textContent = `現在の版：${APP_VERSION}`;
+
+// ===== オフライン対応と更新 =====
+let swReg = null;
 if ("serviceWorker" in navigator) {
+  // 新しい版に切り替わったら1回だけ再読み込みして画面を最新にする
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    location.reload();
+  });
+
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then((reg) => { swReg = reg; reg.update(); })
+      .catch(() => {});
+  });
+
+  // アプリを開き直したとき（画面が表示されたとき）にも更新を確認する
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && swReg) swReg.update().catch(() => {});
   });
 }
+
+// 設定画面の「最新版に更新」
+$("updateBtn").onclick = async () => {
+  $("updateBtn").disabled = true;
+  $("updateBtn").textContent = "確認中…";
+  try { if (swReg) await swReg.update(); } catch {}
+  location.reload();
+};
 </script>
 </body>
 </html>
