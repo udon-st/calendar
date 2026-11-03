@@ -34,6 +34,8 @@
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  button:focus:not(:focus-visible) { outline: none; }
   html, body {
     margin: 0; background: var(--bg); color: var(--fg);
     height: 100%; overflow: hidden; overscroll-behavior: none;
@@ -66,9 +68,8 @@
   .weekdays div:first-child { color: var(--sun); }
   .weekdays div:last-child { color: var(--sat); }
   .cell {
-    /* 小さい画面でも予定一覧の場所が残るように、マスの高さを画面に合わせて縮める */
-    height: min(78px, calc((100vh - 300px) / 6));
-    height: min(78px, calc((100dvh - 300px) / 6));
+    /* 高さは画面の大きさと週の数に合わせて、描画のときに決める */
+    height: 78px;
     display: flex; flex-direction: column; align-items: stretch;
     padding: 3px 1px 4px; gap: 2px; border-top: 1px solid var(--line); overflow: hidden;
   }
@@ -82,13 +83,31 @@
   .cell.out .chip { opacity: .35; }
   .cell.today .num { color: var(--accent); font-weight: 700; }
   .cell.sel .num { background: var(--fg); color: var(--bg); font-weight: 700; }
+  /* 予定の帯：時刻（上）とタイトル（下）の2段。長いタイトルは右端で切る */
   .chip {
-    display: block; width: 100%; font-size: 9.5px; line-height: 14px; height: 14px;
-    padding: 0 3px; border-radius: 3px; color: #fff;
-    white-space: nowrap; overflow: hidden; text-overflow: clip; text-align: left;
+    display: block; width: 100%; flex: none;
+    padding: 1px 3px; border-radius: 4px; color: #fff;
+    overflow: hidden; text-align: left;
   }
-  .chip b { font-weight: 600; }
-  .more { font-size: 9px; color: var(--sub); text-align: center; line-height: 12px; }
+  .chip-time {
+    font-size: 9px; line-height: 11px; height: 11px; font-weight: 700;
+    font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+    white-space: nowrap; overflow: hidden;
+  }
+  .chip-title {
+    font-size: 10px; line-height: 12px; height: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: clip;
+  }
+  .chip.cont { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+  .ev-time.span { width: 76px; font-size: 12px; }
+  .span-toggle {
+    display: flex !important; align-items: center; gap: 8px; margin: 10px 0 0 !important;
+    font-size: 14px !important; color: var(--fg) !important;
+  }
+  .span-toggle input { width: 20px; height: 20px; accent-color: var(--fg); }
+  .more { font-size: 9px; color: var(--sub); text-align: center; line-height: 12px; flex: none; }
+  .hol-name { font-size: 12px; font-weight: 400; color: var(--sun); margin-left: 8px; }
+  .ev-repeat { font-size: 12px; color: var(--sub); margin-top: 2px; }
 
   /* 選択日の予定 */
   .day {
@@ -110,16 +129,18 @@
   /* 下部ボタン */
   .bottom {
     position: fixed; left: 0; right: 0; bottom: 0;
-    padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px);
+    padding: 10px 16px calc(env(safe-area-inset-bottom) + 10px);
     background: linear-gradient(transparent, var(--bg) 30%);
-    display: flex; justify-content: center;
+    display: flex; justify-content: center; gap: 10px;
   }
-  .shot-btn {
-    background: var(--fg); color: var(--bg); border-radius: 24px;
-    padding: 13px 22px; font-size: 15px; font-weight: 600;
-    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  /* 「予定を追加」と「スクショから追加」は同じ大きさ */
+  .bottom-btn {
+    flex: 1; max-width: 180px;
+    background: var(--fg); color: var(--bg); border-radius: 20px;
+    padding: 10px 0; font-size: 14px; font-weight: 600; text-align: center;
+    box-shadow: 0 3px 12px rgba(0,0,0,.12);
   }
-  .shot-btn:active { opacity: .8; }
+  .bottom-btn:active { opacity: .8; }
 
   /* ダイアログ */
   dialog {
@@ -157,7 +178,7 @@
   }
   .color.custom {
     background: conic-gradient(#e5484d, #e0b100, #2f9e6a, #4aa3df, #3a72d8, #8e4ec6, #e0607e, #e5484d);
-    cursor: pointer; display: block;
+    cursor: pointer; display: block; margin: 0; flex: none;
   }
   .color.custom::before {
     content: "＋"; position: absolute; inset: 0; display: grid; place-items: center;
@@ -195,6 +216,41 @@
     font-size: 14px; color: var(--fg);
   }
   .ics-toggle input { width: 20px; height: 20px; accent-color: var(--fg); }
+
+  /* 時刻の入力（5分刻みのプルダウン＋手入力） */
+  .time-pick { display: flex; align-items: center; gap: 4px; }
+  .time-pick select.field { flex: 1; min-width: 0; padding: 10px 4px; text-align: center; text-align-last: center; }
+  .time-pick input.field { flex: 1; min-width: 0; }
+  .time-pick input.field.bad { border-color: var(--accent); }
+  .tp-colon { flex: none; font-weight: 700; color: var(--sub); }
+  .tp-mode { flex: none; font-size: 12px; color: var(--sub); text-decoration: underline; padding: 6px 2px; }
+
+  /* 繰り返し */
+  select.field { -webkit-appearance: none; appearance: none; background-image: none; }
+  .count-box { display: flex; align-items: center; gap: 6px; }
+  .count-box span { font-size: 15px; color: var(--sub); flex: none; }
+
+  /* 範囲を選ぶ画面（中央に出す小さい画面） */
+  dialog.center { margin: auto; width: calc(100% - 48px); max-width: 360px; border-radius: 16px; }
+  .scope-title { font-size: 16px; margin: 0 0 6px; }
+  .scope-btns { display: flex; flex-direction: column; gap: 8px; }
+  .btn.ghost { background: none; color: var(--sub); font-weight: 400; }
+
+  /* 検索 */
+  .q-head { font-size: 12px; color: var(--sub); margin: 16px 0 4px; }
+  .q-row { display: flex; gap: 10px; align-items: stretch; width: 100%; text-align: left; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .q-date { width: 74px; flex: none; font-size: 12px; color: var(--sub); line-height: 1.5; font-variant-numeric: tabular-nums; white-space: pre-line; }
+  .q-body { flex: 1; min-width: 0; }
+  .q-title { font-size: 15px; line-height: 1.4; word-break: break-word; }
+  .q-sub { font-size: 12px; color: var(--sub); margin-top: 1px; word-break: break-word; }
+  .shift-info { font-size: 14px; font-weight: 700; margin-top: 4px; }
+  .shift-tag {
+    flex: none; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 6px;
+    background: var(--soft); color: var(--sub);
+  }
+  .shift-tag.change { background: #f3e7c4; color: #7a5a00; }
+  .shift-tag.add { background: #dff0c8; color: #3c5a10; }
+  .shift-tag.delete { background: #f6d6d4; color: #8a2a25; }
   .teach-link { display: block; font-size: 13px; color: var(--sub); text-decoration: underline; padding: 12px 0 4px; text-align: left; }
 
   .loading { text-align: center; padding: 32px 0; color: var(--sub); font-size: 14px; }
@@ -214,6 +270,9 @@
     <button class="text-btn" id="todayBtn">今日</button>
     <button class="icon-btn" id="prevBtn" aria-label="前の月">‹</button>
     <button class="icon-btn" id="nextBtn" aria-label="次の月">›</button>
+    <button class="icon-btn" id="searchBtn" aria-label="検索">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+    </button>
     <button class="icon-btn" id="settingsBtn" aria-label="設定">⚙︎</button>
   </div>
 </header>
@@ -226,11 +285,11 @@
 <section class="day">
   <div class="day-title" id="dayTitle"></div>
   <div id="dayList"></div>
-  <button class="add-line" id="addBtn">＋ 予定を追加</button>
 </section>
 
 <div class="bottom">
-  <button class="shot-btn" id="shotBtn">スクショから追加</button>
+  <button class="bottom-btn" id="addBtn">＋ 予定を追加</button>
+  <button class="bottom-btn" id="shotBtn">スクショから追加</button>
 </div>
 <input type="file" id="fileInput" accept="image/*" multiple hidden>
 
@@ -249,6 +308,43 @@
       <div><label>開始</label><input class="field" id="fStart" type="time"></div>
       <div><label>終了</label><input class="field" id="fEnd" type="time"></div>
     </div>
+    <label class="span-toggle">
+      <input type="checkbox" id="fSpan">
+      日をまたぐ（翌日以降に終わる）
+    </label>
+    <div id="fEndDateBox" hidden>
+      <label>終了日</label>
+      <input class="field" id="fEndDate" type="date">
+    </div>
+    <label>繰り返し</label>
+    <select class="field" id="fRepeat">
+      <option value="">しない</option>
+      <option value="daily">毎日</option>
+      <option value="weekly">毎週</option>
+      <option value="biweekly">隔週</option>
+      <option value="monthly">毎月</option>
+      <option value="yearly">毎年</option>
+    </select>
+    <div id="repeatEndBox" hidden>
+      <label>繰り返しの終わり</label>
+      <div class="row">
+        <div>
+          <select class="field" id="fEndType">
+            <option value="never">終わらない</option>
+            <option value="until">日付まで</option>
+            <option value="count">回数</option>
+          </select>
+        </div>
+        <div>
+          <input class="field" id="fUntil" type="date" hidden>
+          <div class="count-box" id="fCountBox" hidden>
+            <input class="field" id="fCount" type="number" min="1" max="500" inputmode="numeric" value="10">
+            <span>回</span>
+          </div>
+        </div>
+      </div>
+      <p class="note" id="repeatSummary"></p>
+    </div>
     <label>色</label>
     <div class="colors" id="fColors"></div>
     <label>メモ</label>
@@ -258,9 +354,36 @@
       <button class="btn primary" id="saveBtn">保存</button>
     </div>
     <div class="actions" style="margin-top:8px">
+      <button class="btn" id="dupBtn">複製</button>
       <button class="btn" id="icsOneBtn">iPhoneのカレンダーに追加</button>
     </div>
-    <p class="note">時刻を空欄にすると終日の予定になります。</p>
+    <p class="note">開始の時を「--」にすると終日の予定になります。1分単位で入れたいときは「手入力」を押してください（「1907」のように数字だけでもOK）。</p>
+  </div>
+</dialog>
+
+<!-- 繰り返しの予定を変更・削除するときの範囲 -->
+<dialog id="scopeDlg" class="center">
+  <div class="sheet">
+    <h2 class="scope-title" id="scopeTitle">繰り返しの予定</h2>
+    <p class="note" id="scopeNote" style="margin:0 0 12px"></p>
+    <div class="scope-btns">
+      <button class="btn" data-scope="one">この日の予定だけ</button>
+      <button class="btn" data-scope="after">この日以降すべて</button>
+      <button class="btn" data-scope="all">すべての予定</button>
+      <button class="btn ghost" data-scope="">キャンセル</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 検索・これからの予定 -->
+<dialog id="searchDlg">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>予定を検索</h2>
+      <button class="icon-btn" data-close aria-label="閉じる">✕</button>
+    </div>
+    <input class="field" id="qInput" type="search" placeholder="タイトルやメモで検索" autocomplete="off">
+    <div id="qResults"></div>
   </div>
 </dialog>
 
@@ -275,7 +398,7 @@
     <div id="importBody"></div>
     <button class="teach-link" id="teachBtn">読み取りがおかしいときは「読み取りのルール」で教える ›</button>
     <div class="submit-bar" id="importActions" hidden>
-      <label class="ics-toggle">
+      <label class="ics-toggle" id="icsRow">
         <input type="checkbox" id="icsToggle" checked>
         iPhoneのカレンダーにも追加する
       </label>
@@ -308,8 +431,11 @@
 ・△は参加未定という意味。メモにそのまま残す
 ・バイトのシフトは「11/5 17-22 ホール」のように書かれている
 ・予定名に絵文字は入れない"></textarea>
+    <label>シフト表での自分の名前</label>
+    <input class="field" id="sShiftName" placeholder="例：齊藤 大輝" autocomplete="off">
+    <p class="note" style="margin-top:6px">バイトの確定シフト表（複数人の表）を読み込むと、この名前の行だけを読み取り、カレンダーのバイトの予定を確定版に合わせて書き換えます。</p>
     <div class="actions">
-      <button class="btn" id="rulesSaveBtn">ルールを保存</button>
+      <button class="btn" id="rulesSaveBtn">ルールと名前を保存</button>
     </div>
     <p class="note" id="rulesNote">ここに書いた内容は、スクショを読み取るたびにAIへ一緒に送られます（普段のルールより優先）。うまく読めなかったときに、正しい読み方を書き足していくと精度が上がります。同期を設定していれば、スマホとPCで共有されます。</p>
 
@@ -444,7 +570,7 @@ let tombstones = load(KEY_TOMBS, {});
 
 // 読み取りのルール（AIへの追加の指示）{ text, updatedAt }
 const KEY_RULES = "cal-rules";
-let rules = load(KEY_RULES, { text: "", updatedAt: 0 });
+let rules = { text: "", shiftName: "", updatedAt: 0, ...load(KEY_RULES, {}) };
 
 // 端末内に保存するだけ（同期はしない）
 function saveLocal() {
@@ -478,16 +604,309 @@ function fmtDate(s) {
   return `${d.getMonth() + 1}/${d.getDate()}（${WD[d.getDay()]}）`;
 }
 function fmtTime(e) {
+  if (spanDays(e) > 0) return timeLabel(e, false);
   if (!e.start) return "終日";
   return e.end ? `${e.start}〜${e.end}` : e.start;
 }
 
-// 終日の予定を先に、そのあと開始時刻順
-function eventsOn(date) {
-  return events
-    .filter((e) => e.date === date)
-    .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+// ===== 時刻の入力（5分刻みで選ぶ／手入力で1分単位） =====
+// 「1907」「19:7」「19時7分」「907」「19」などを "HH:MM" にそろえる。読めなければ null
+function normTime(s) {
+  s = String(s || "")
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[：時]/g, ":").replace(/分/g, "").replace(/\s/g, "");
+  if (!s) return "";
+  let m = s.match(/^(\d{1,2}):(\d{1,2})$/) || s.match(/^(\d{1,2})(\d{2})$/);
+  if (!m && /^\d{1,2}:?$/.test(s)) m = [s, s.replace(":", ""), "0"];
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]);
+  if (h > 23 || mi > 59) return null;
+  return `${pad(h)}:${pad(mi)}`;
 }
+
+// <input type="time"> を「時・分のプルダウン（5分刻み）＋手入力ボタン」に置き換える。
+// 元の入力欄は値の入れ物として残すので、ほかの処理はこれまで通り .value で読み書きできる
+function enhanceTimeInput(inp) {
+  if (inp.dataset.enhanced) return;
+  inp.dataset.enhanced = "1";
+  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+  const initial = inp.value;
+  inp.type = "hidden";
+
+  const wrap = document.createElement("div");
+  wrap.className = "time-pick";
+  const hSel = document.createElement("select");
+  const mSel = document.createElement("select");
+  hSel.className = mSel.className = "field";
+  hSel.innerHTML = '<option value="">--</option>' +
+    Array.from({ length: 24 }, (_, i) => `<option value="${pad(i)}">${i}</option>`).join("");
+  const minuteOptions = () => '<option value="">--</option>' +
+    Array.from({ length: 12 }, (_, i) => `<option value="${pad(i * 5)}">${pad(i * 5)}</option>`).join("");
+  mSel.innerHTML = minuteOptions();
+  const colon = document.createElement("span");
+  colon.className = "tp-colon";
+  colon.textContent = ":";
+  const txt = document.createElement("input");
+  txt.className = "field";
+  txt.type = "text";
+  txt.inputMode = "numeric";
+  txt.placeholder = "例 19:07";
+  txt.hidden = true;
+  const modeBtn = document.createElement("button");
+  modeBtn.type = "button";
+  modeBtn.className = "tp-mode";
+  modeBtn.textContent = "手入力";
+  wrap.append(hSel, colon, mSel, txt, modeBtn);
+  inp.after(wrap);
+
+  const setRaw = (v) => desc.set.call(inp, v);
+  const fire = () => inp.dispatchEvent(new Event("input", { bubbles: true }));
+
+  // 値に合わせて見た目を更新（5分刻みでない分は、その分の選択肢を足して表示する）
+  function refresh() {
+    const v = desc.get.call(inp) || "";
+    const [h, m] = v ? v.split(":") : ["", ""];
+    hSel.value = h || "";
+    mSel.innerHTML = minuteOptions();
+    if (m && Number(m) % 5 !== 0) {
+      const o = document.createElement("option");
+      o.value = m;
+      o.textContent = m;
+      const after = [...mSel.options].find((x) => x.value && Number(x.value) > Number(m));
+      mSel.insertBefore(o, after || null);
+    }
+    mSel.value = m || "";
+    if (document.activeElement !== txt) txt.value = v;
+    txt.classList.remove("bad");
+  }
+
+  Object.defineProperty(inp, "value", {
+    configurable: true,
+    get() { return desc.get.call(inp); },
+    set(v) { setRaw(v || ""); refresh(); }
+  });
+
+  const fromSelects = () => {
+    if (!hSel.value) { setRaw(""); }
+    else { setRaw(`${hSel.value}:${mSel.value || "00"}`); }
+    refresh();
+    fire();
+  };
+  hSel.onchange = fromSelects;
+  mSel.onchange = () => { if (!hSel.value && mSel.value) hSel.value = "00"; fromSelects(); };
+
+  // 手入力：入力のたびに読めれば反映、確定時（フォーカスを外したとき）に形をそろえる
+  txt.oninput = () => {
+    const n = normTime(txt.value);
+    txt.classList.toggle("bad", n === null);
+    if (n !== null) { setRaw(n); fire(); }
+  };
+  txt.onblur = () => {
+    const n = normTime(txt.value);
+    if (n === null) { txt.classList.add("bad"); return; }
+    setRaw(n);
+    refresh();
+    fire();
+  };
+
+  const setMode = (manual) => {
+    hSel.hidden = mSel.hidden = colon.hidden = manual;
+    txt.hidden = !manual;
+    modeBtn.textContent = manual ? "選ぶ" : "手入力";
+    if (manual) { txt.value = desc.get.call(inp) || ""; txt.focus(); }
+    else refresh();
+  };
+  modeBtn.onclick = () => setMode(txt.hidden);
+  // 画面を開き直したときに「選ぶ」に戻すため
+  inp.resetTimeMode = () => {
+    hSel.hidden = mSel.hidden = colon.hidden = false;
+    txt.hidden = true;
+    modeBtn.textContent = "手入力";
+    refresh();
+  };
+
+  setRaw(initial);
+  refresh();
+}
+
+// 日付の計算（日数の差・日を足す）
+const dayNum = (s) => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d) / 86400000; };
+const daysBetween = (a, b) => dayNum(b) - dayNum(a);
+function addDays(s, n) { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); }
+
+// ===== 繰り返し =====
+// repeat: { freq: "daily"|"weekly"|"monthly"|"yearly", interval: 数, endType: "never"|"until"|"count", until: "YYYY-MM-DD", count: 数 }
+// exdates: 繰り返しのうち消した日 ["YYYY-MM-DD"]
+
+// その日が繰り返しの何回目か（0始まり）。当てはまらなければ -1（消した日も回数には数える）
+function occurrenceIndex(e, date) {
+  const r = e.repeat;
+  if (!r) return date === e.date ? 0 : -1;
+  if (date < e.date) return -1;
+  if (r.endType === "until" && r.until && date > r.until) return -1;
+  const iv = Math.max(1, r.interval || 1);
+  const a = parseYmd(e.date), b = parseYmd(date);
+  let k = -1;
+  if (r.freq === "daily") {
+    const n = daysBetween(e.date, date);
+    if (n % iv === 0) k = n / iv;
+  } else if (r.freq === "weekly") {
+    const n = daysBetween(e.date, date);
+    if (n % (7 * iv) === 0) k = n / (7 * iv);
+  } else if (r.freq === "monthly") {
+    const n = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+    if (b.getDate() === a.getDate() && n % iv === 0) {
+      k = n / iv;
+      // 29〜31日は、その日がない月を飛ばし、回数にも数えない
+      if (a.getDate() > 28) {
+        k = 0;
+        for (let m = iv; m < n; m += iv) {
+          const y = a.getFullYear() + Math.floor((a.getMonth() + m) / 12);
+          const mo = (a.getMonth() + m) % 12;
+          if (new Date(y, mo + 1, 0).getDate() >= a.getDate()) k++;
+        }
+        if (n > 0) k++;
+      }
+    }
+  } else if (r.freq === "yearly") {
+    const n = b.getFullYear() - a.getFullYear();
+    if (b.getMonth() === a.getMonth() && b.getDate() === a.getDate() && n % iv === 0) k = n / iv;
+  }
+  if (k < 0) return -1;
+  if (r.endType === "count" && k >= (r.count || 1)) return -1;
+  return k;
+}
+function occursOn(e, date) {
+  if (occurrenceIndex(e, date) < 0) return false;
+  return !(e.exdates || []).includes(date);
+}
+// 指定日以降で最初に予定がある日（2年先まで探す）
+function nextOccurrence(e, from) {
+  if (!e.repeat) return e.date >= from ? e.date : null;
+  let d = from < e.date ? e.date : from;
+  for (let i = 0; i < 800; i++, d = addDays(d, 1)) {
+    if (occursOn(e, d)) return d;
+    if (e.repeat.endType === "until" && e.repeat.until && d > e.repeat.until) break;
+  }
+  return null;
+}
+// 繰り返しの最後の日（終了なしなら null）
+function lastOccurrence(e) {
+  const r = e.repeat;
+  if (!r || r.endType === "never") return null;
+  if (r.endType === "until") return r.until || null;
+  let d = e.date, last = e.date;
+  for (let i = 0; i < 4000; i++, d = addDays(d, 1)) {
+    const k = occurrenceIndex(e, d);
+    if (k >= 0) { last = d; if (k >= (r.count || 1) - 1) break; }
+  }
+  return last;
+}
+// 繰り返しの説明文（例：「隔週（水）・12/23まで」）
+function describeRepeat(e) {
+  const r = e.repeat;
+  if (!r) return "";
+  const d = parseYmd(e.date);
+  const iv = r.interval || 1;
+  let base = "";
+  if (r.freq === "daily") base = iv === 1 ? "毎日" : `${iv}日ごと`;
+  if (r.freq === "weekly") base = (iv === 1 ? "毎週" : iv === 2 ? "隔週" : `${iv}週ごと`) + `（${WD[d.getDay()]}）`;
+  if (r.freq === "monthly") base = (iv === 1 ? "毎月" : `${iv}か月ごと`) + `${d.getDate()}日`;
+  if (r.freq === "yearly") base = `毎年${d.getMonth() + 1}/${d.getDate()}`;
+  if (r.endType === "until" && r.until) {
+    const u = parseYmd(r.until);
+    return `${base}・${u.getFullYear() !== d.getFullYear() ? u.getFullYear() + "/" : ""}${u.getMonth() + 1}/${u.getDate()}まで`;
+  }
+  if (r.endType === "count") return `${base}・全${r.count}回`;
+  return base;
+}
+
+// 日をまたぐ予定の日数（同じ日に終わるなら 0）
+function spanDays(e) {
+  if (!e.endDate || e.endDate <= e.date) return 0;
+  return Math.min(60, daysBetween(e.date, e.endDate));
+}
+
+// その日の予定（繰り返し・日をまたぐ予定も含む）
+// 返す予定の date はその回の開始日、onDate はこの日、pos は first/middle/last/single
+function eventsOn(date) {
+  const list = [];
+  for (const e of events) {
+    const span = spanDays(e);
+    for (let k = 0; k <= span; k++) {
+      const startDay = k ? addDays(date, -k) : date;
+      let inst = null;
+      if (!e.repeat) {
+        if (e.date === startDay) inst = e;
+      } else if (occursOn(e, startDay)) {
+        inst = { ...e, date: startDay, endDate: addDays(startDay, span), seriesId: e.id, seriesStart: e.date };
+      }
+      if (!inst) continue;
+      const pos = span === 0 ? "single" : k === 0 ? "first" : k === span ? "last" : "middle";
+      list.push({ ...inst, onDate: date, pos });
+    }
+  }
+  // 前の日から続く予定 → 終日 → 開始時刻の順
+  const rank = (e) => (e.pos === "middle" || e.pos === "last") ? 0 : e.start ? 2 : 1;
+  return list.sort((a, b) => rank(a) - rank(b) || (a.start || "").localeCompare(b.start || ""));
+}
+
+// 一覧などに出す時間の文字（日をまたぐ予定は日付も付ける）
+function md(s) { const d = parseYmd(s); return `${d.getMonth() + 1}/${d.getDate()}`; }
+function timeLabel(e, multiline) {
+  const nl = multiline ? "\n" : " ";
+  if (spanDays(e) > 0) {
+    const a = e.start ? `${md(e.date)} ${e.start}` : md(e.date);
+    const b = e.end ? `${md(e.endDate)} ${e.end}` : md(e.endDate);
+    return `${a}${nl}〜${b}`;
+  }
+  if (!e.start) return "終日";
+  return e.end ? `${e.start}${nl}〜${e.end}` : e.start;
+}
+
+// ===== 祝日（日本） =====
+const holidayCache = {};
+function nthMonday(y, m, n) {
+  const first = new Date(y, m - 1, 1).getDay();
+  return 1 + ((8 - first) % 7) + (n - 1) * 7;
+}
+function holidaysOf(y) {
+  if (holidayCache[y]) return holidayCache[y];
+  const h = {};
+  const add = (m, d, name) => { h[`${y}-${pad(m)}-${pad(d)}`] = name; };
+  add(1, 1, "元日");
+  add(1, nthMonday(y, 1, 2), "成人の日");
+  add(2, 11, "建国記念の日");
+  if (y >= 2020) add(2, 23, "天皇誕生日");
+  add(3, Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)), "春分の日");
+  add(4, 29, "昭和の日");
+  add(5, 3, "憲法記念日");
+  add(5, 4, "みどりの日");
+  add(5, 5, "こどもの日");
+  if (y === 2020) add(7, 23, "海の日"); else if (y === 2021) add(7, 22, "海の日"); else add(7, nthMonday(y, 7, 3), "海の日");
+  if (y === 2020) add(8, 10, "山の日"); else if (y === 2021) add(8, 8, "山の日"); else if (y >= 2016) add(8, 11, "山の日");
+  add(9, nthMonday(y, 9, 3), "敬老の日");
+  add(9, Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)), "秋分の日");
+  if (y === 2020) add(7, 24, "スポーツの日"); else if (y === 2021) add(7, 23, "スポーツの日");
+  else add(10, nthMonday(y, 10, 2), y >= 2020 ? "スポーツの日" : "体育の日");
+  add(11, 3, "文化の日");
+  add(11, 23, "勤労感謝の日");
+  // 国民の休日：祝日にはさまれた平日
+  for (const k of Object.keys(h)) {
+    const mid = addDays(k, 1), next = addDays(k, 2);
+    if (h[next] && !h[mid] && parseYmd(mid).getDay() !== 0) h[mid] = "国民の休日";
+  }
+  // 振替休日：日曜の祝日の次の、祝日でない日
+  for (const k of Object.keys(h).sort()) {
+    if (parseYmd(k).getDay() === 0) {
+      let d = addDays(k, 1);
+      while (h[d]) d = addDays(d, 1);
+      h[d] = "振替休日";
+    }
+  }
+  return (holidayCache[y] = h);
+}
+const holidayName = (date) => holidaysOf(Number(date.slice(0, 4)))[date] || "";
 
 // ===== 画面描画 =====
 let viewYear, viewMonth; // 表示中の年・月(0始まり)
@@ -495,6 +914,12 @@ let selected = todayStr();
 const MAX_CHIPS = 3;
 
 const $ = (id) => document.getElementById(id);
+
+// 予定の帯の高さ（CSSの .chip と合わせる）
+const CHIP_TIMED = 25;  // 時刻＋タイトルの2段
+const CHIP_ALLDAY = 14; // タイトルだけ
+const CHIP_GAP = 2;
+const MORE_H = 12;
 
 function render() {
   $("monthLabel").textContent = `${viewYear}年${viewMonth + 1}月`;
@@ -504,14 +929,21 @@ function render() {
   const start = new Date(viewYear, viewMonth, 1 - first.getDay());
   const today = todayStr();
 
-  for (let i = 0; i < 42; i++) {
+  // その月に必要な週だけ表示し、マスを画面いっぱいまで高くする
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const rows = Math.ceil((first.getDay() + daysInMonth) / 7);
+  const cellH = Math.max(52, Math.min(104, Math.floor((window.innerHeight - 320) / rows)));
+  const avail = cellH - 32; // 日付の数字の分を引いた、予定を並べられる高さ
+
+  for (let i = 0; i < rows * 7; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const ds = ymd(d);
     const cell = document.createElement("button");
     cell.className = "cell";
+    cell.style.height = `${cellH}px`;
     if (d.getMonth() !== viewMonth) cell.classList.add("out");
-    if (d.getDay() === 0) cell.classList.add("sun");
-    if (d.getDay() === 6) cell.classList.add("sat");
+    if (d.getDay() === 0 || holidayName(ds)) cell.classList.add("sun");
+    else if (d.getDay() === 6) cell.classList.add("sat");
     if (ds === today) cell.classList.add("today");
     if (ds === selected) cell.classList.add("sel");
 
@@ -520,20 +952,35 @@ function render() {
     num.textContent = d.getDate();
     cell.appendChild(num);
 
+    // 入るだけ並べて、入らない分は「+N」
     const evs = eventsOn(ds);
-    const shown = evs.length > MAX_CHIPS ? MAX_CHIPS - 1 : evs.length;
-    for (const e of evs.slice(0, shown)) {
+    let used = 0, shown = 0;
+    for (let j = 0; j < evs.length; j++) {
+      const e = evs[j];
+      // 時刻の段に出す文字：開始日は開始時刻、途中は「続き」、最終日は「〜終了時刻」
+      let timeText = e.start || "";
+      if (e.pos === "middle") timeText = e.start ? "続き" : "";
+      if (e.pos === "last") timeText = e.start ? (e.end ? `〜${e.end}` : "続き") : "";
+      const h = (timeText ? CHIP_TIMED : CHIP_ALLDAY) + CHIP_GAP;
+      const rest = evs.length - j - 1;
+      if (used + h + (rest > 0 ? MORE_H : 0) > avail) break;
+      used += h;
+      shown++;
       const chip = document.createElement("div");
       chip.className = "chip";
       chip.style.background = colorHex(e.color);
       chip.style.color = textOn(e.color);
-      if (e.start) {
-        const b = document.createElement("b");
-        b.textContent = e.start;
-        chip.append(b, " " + (e.title || ""));
-      } else {
-        chip.textContent = e.title || "（無題）";
+      if (e.pos === "middle" || e.pos === "last") chip.classList.add("cont");
+      if (timeText) {
+        const t = document.createElement("div");
+        t.className = "chip-time";
+        t.textContent = timeText;
+        chip.appendChild(t);
       }
+      const ti = document.createElement("div");
+      ti.className = "chip-title";
+      ti.textContent = e.title || "（無題）";
+      chip.appendChild(ti);
       cell.appendChild(chip);
     }
     if (evs.length > shown) {
@@ -555,7 +1002,14 @@ function render() {
 
 function renderDay() {
   const d = parseYmd(selected);
+  const hol = holidayName(selected);
   $("dayTitle").textContent = `${d.getMonth() + 1}月${d.getDate()}日（${WD[d.getDay()]}）`;
+  if (hol) {
+    const s = document.createElement("span");
+    s.className = "hol-name";
+    s.textContent = hol;
+    $("dayTitle").appendChild(s);
+  }
   const list = $("dayList");
   list.innerHTML = "";
   const evs = eventsOn(selected);
@@ -571,13 +1025,20 @@ function renderDay() {
     bar.style.background = colorHex(e.color);
     const time = document.createElement("div");
     time.className = "ev-time";
-    time.textContent = e.start ? (e.end ? `${e.start}\n〜${e.end}` : e.start) : "終日";
+    time.textContent = timeLabel(e, true);
+    if (spanDays(e) > 0) time.classList.add("span");
     const body = document.createElement("div");
     body.className = "ev-body";
     const t = document.createElement("div");
     t.className = "ev-title";
     t.textContent = e.title || "（無題）";
     body.appendChild(t);
+    if (e.repeat) {
+      const r = document.createElement("div");
+      r.className = "ev-repeat";
+      r.textContent = `↻ ${describeRepeat({ ...e, date: e.seriesStart || e.date })}`;
+      body.appendChild(r);
+    }
     if (e.memo) {
       const m = document.createElement("div");
       m.className = "ev-memo";
@@ -604,24 +1065,141 @@ function jumpTo(date) {
 }
 
 // ===== 予定の追加・編集 =====
-let editingId = null;
+let editingId = null;            // 編集中の予定（繰り返しなら元の予定）のid
+let editingInstanceDate = null;  // 繰り返しの予定を開いたときの、その日の日付
 let editingColor = DEFAULT_COLOR;
 
-function openEdit(ev) {
-  editingId = ev ? ev.id : null;
-  editingColor = ev ? (ev.color || DEFAULT_COLOR) : DEFAULT_COLOR;
-  $("editTitle").textContent = ev ? "予定を編集" : "予定を追加";
-  $("fTitle").value = ev ? ev.title : "";
-  $("fDate").value = ev ? ev.date : selected;
-  $("fStart").value = ev ? ev.start : "";
-  $("fEnd").value = ev ? ev.end : "";
-  $("fMemo").value = ev ? ev.memo : "";
-  buildColorPicker($("fColors"), editingColor, (id) => { editingColor = id; });
-  $("deleteBtn").hidden = !ev;
-  $("editDlg").showModal();
+// フォームの「繰り返し」を読み取る
+function readRepeatForm() {
+  const v = $("fRepeat").value;
+  if (!v) return null;
+  const r = {
+    freq: v === "biweekly" ? "weekly" : v,
+    interval: v === "biweekly" ? 2 : 1,
+    endType: $("fEndType").value,
+    until: "",
+    count: 0
+  };
+  if (r.endType === "until") r.until = $("fUntil").value || "";
+  if (r.endType === "count") r.count = Math.max(1, Math.min(500, parseInt($("fCount").value, 10) || 1));
+  if (r.endType === "until" && !r.until) r.endType = "never";
+  return r;
+}
+// 繰り返しの欄の表示を切り替え、説明文を出す
+function updateRepeatForm() {
+  const on = !!$("fRepeat").value;
+  $("repeatEndBox").hidden = !on;
+  const t = $("fEndType").value;
+  $("fUntil").hidden = t !== "until";
+  $("fCountBox").hidden = t !== "count";
+  const date = $("fDate").value;
+  const r = readRepeatForm();
+  if (!on || !date || !r) { $("repeatSummary").textContent = ""; return; }
+  const tmp = { date, repeat: r, exdates: [] };
+  let text = describeRepeat(tmp);
+  const last = lastOccurrence(tmp);
+  if (r.endType === "count" && last) {
+    const l = parseYmd(last);
+    text += `（最後は${l.getMonth() + 1}/${l.getDate()}）`;
+  }
+  if (r.endType === "until" && r.until < date) text = "終わりの日付が開始日より前になっています";
+  $("repeatSummary").textContent = text;
+}
+// 編集画面の開始・終了は、5分刻みで選ぶ方式にする
+enhanceTimeInput($("fStart"));
+enhanceTimeInput($("fEnd"));
+
+["fRepeat", "fEndType", "fUntil", "fCount", "fDate"].forEach((id) => {
+  $(id).addEventListener("input", updateRepeatForm);
+  $(id).addEventListener("change", updateRepeatForm);
+});
+function setRepeatForm(r) {
+  if (!r) {
+    $("fRepeat").value = "";
+    $("fEndType").value = "never";
+    $("fUntil").value = "";
+    $("fCount").value = 10;
+  } else {
+    $("fRepeat").value = r.freq === "weekly" && r.interval === 2 ? "biweekly" : r.freq;
+    $("fEndType").value = r.endType || "never";
+    $("fUntil").value = r.until || "";
+    $("fCount").value = r.count || 10;
+  }
+  updateRepeatForm();
 }
 
-$("saveBtn").onclick = () => {
+// 「日をまたぐ」の切り替え
+function updateSpanForm() {
+  const on = $("fSpan").checked;
+  $("fEndDateBox").hidden = !on;
+  if (on && (!$("fEndDate").value || $("fEndDate").value <= $("fDate").value)) {
+    $("fEndDate").value = $("fDate").value ? addDays($("fDate").value, 1) : "";
+  }
+}
+$("fSpan").addEventListener("change", updateSpanForm);
+// 開始日を動かしたら、終了日も同じだけ動かす
+let lastFormDate = "";
+$("fDate").addEventListener("focus", () => { lastFormDate = $("fDate").value; });
+$("fDate").addEventListener("change", () => {
+  if ($("fSpan").checked && lastFormDate && $("fDate").value && $("fEndDate").value) {
+    $("fEndDate").value = addDays($("fEndDate").value, daysBetween(lastFormDate, $("fDate").value));
+  }
+  lastFormDate = $("fDate").value;
+});
+
+// ev は一覧で押した予定（繰り返しなら、その日の分）
+function openEdit(ev, opts = {}) {
+  const series = ev && ev.seriesId ? events.find((e) => e.id === ev.seriesId) : null;
+  editingId = ev && !opts.duplicate ? (ev.seriesId || ev.id) : null;
+  editingInstanceDate = ev && !opts.duplicate ? ev.date : null;
+  editingColor = ev ? (ev.color || DEFAULT_COLOR) : DEFAULT_COLOR;
+  $("editTitle").textContent = opts.duplicate ? "予定を複製" : ev ? "予定を編集" : "予定を追加";
+  $("fTitle").value = (ev && ev.title) || "";
+  $("fDate").value = (ev && ev.date) || selected;
+  $("fStart").value = (ev && ev.start) || "";
+  $("fEnd").value = (ev && ev.end) || "";
+  $("fMemo").value = (ev && ev.memo) || "";
+  // 日をまたぐ予定なら終了日を出す（繰り返しの回なら、その回の終了日）
+  const span = ev ? spanDays(ev) : 0;
+  $("fSpan").checked = span > 0;
+  $("fEndDate").value = span > 0 ? addDays($("fDate").value, span) : "";
+  updateSpanForm();
+  setRepeatForm(opts.duplicate ? null : (series || ev || {}).repeat || null);
+  $("fStart").resetTimeMode();
+  $("fEnd").resetTimeMode();
+  buildColorPicker($("fColors"), editingColor, (id) => { editingColor = id; });
+  $("deleteBtn").hidden = !editingId;
+  $("dupBtn").hidden = !editingId;
+  if (!$("editDlg").open) $("editDlg").showModal();
+}
+
+// 繰り返しの予定の変更・削除で、どの範囲にするか選んでもらう
+function askScope(title, note) {
+  return new Promise((resolve) => {
+    $("scopeTitle").textContent = title;
+    $("scopeNote").textContent = note || "";
+    const dlg = $("scopeDlg");
+    const btns = [...dlg.querySelectorAll("[data-scope]")];
+    const done = (v) => { btns.forEach((b) => (b.onclick = null)); dlg.close(); resolve(v); };
+    btns.forEach((b) => (b.onclick = () => done(b.dataset.scope || null)));
+    dlg.oncancel = () => done(null);
+    dlg.showModal();
+  });
+}
+
+// 繰り返しを「この日の前日まで」で終わらせる
+function endSeriesBefore(s, date) {
+  const k = occurrenceIndex(s, date);
+  if (s.repeat.endType === "count" && k > 0) {
+    s.repeat = { ...s.repeat, count: k };
+  } else {
+    s.repeat = { ...s.repeat, endType: "until", until: addDays(date, -1), count: 0 };
+  }
+  s.exdates = (s.exdates || []).filter((d) => d < date);
+  touch(s);
+}
+
+$("saveBtn").onclick = async () => {
   const data = {
     title: $("fTitle").value.trim(),
     date: $("fDate").value,
@@ -631,24 +1209,115 @@ $("saveBtn").onclick = () => {
     color: editingColor
   };
   if (!data.date) { alert("日付を入れてください"); return; }
-  if (editingId) {
-    const i = events.findIndex((e) => e.id === editingId);
-    if (i >= 0) events[i] = touch({ ...events[i], ...data });
+  // 終了日（日をまたがないなら開始日と同じ）
+  data.endDate = $("fSpan").checked && $("fEndDate").value ? $("fEndDate").value : data.date;
+  if (data.endDate < data.date) { alert("終了日が開始日より前になっています"); return; }
+  if (data.endDate === data.date && data.start && data.end && data.end < data.start) {
+    // 22:00〜02:00 のような入力は、翌日に終わる予定にするか確認する
+    if (!confirm(`終了（${data.end}）が開始（${data.start}）より前です。翌日の${data.end}に終わる予定にしますか？`)) return;
+    data.endDate = addDays(data.date, 1);
+  }
+  if (data.endDate === data.date) data.endDate = "";
+  const spanOf = (d) => (d.endDate ? daysBetween(d.date, d.endDate) : 0);
+  const span = spanOf(data);
+  const repeat = readRepeatForm();
+  if (repeat && repeat.endType === "until" && repeat.until < data.date) {
+    alert("繰り返しの終わりの日付が、開始日より前になっています"); return;
+  }
+
+  if (!editingId) {
+    events.push(touch({ id: uid(), ...data, repeat, exdates: [] }));
   } else {
-    events.push(touch({ id: uid(), ...data }));
+    const i = events.findIndex((e) => e.id === editingId);
+    if (i < 0) { $("editDlg").close(); return; }
+    const orig = events[i];
+    if (!orig.repeat) {
+      events[i] = touch({ ...orig, ...data, repeat, exdates: [] });
+    } else {
+      const inst = editingInstanceDate || orig.date;
+      let scope = await askScope("繰り返しの予定を変更", "どの予定を変更しますか？");
+      if (!scope) return;
+      if (scope === "after" && inst === orig.date) scope = "all";
+      if (scope === "all") {
+        if (!repeat) {
+          // 繰り返しをやめて、1回だけの予定にする
+          events[i] = touch({ ...orig, ...data, repeat: null, exdates: [] });
+        } else {
+          // 開いた日の日付を動かした分だけ、全体をずらす
+          const shift = daysBetween(inst, data.date);
+          const newStart = addDays(orig.date, shift);
+          events[i] = touch({
+            ...orig, ...data,
+            date: newStart,
+            endDate: span ? addDays(newStart, span) : "",
+            repeat,
+            exdates: (orig.exdates || []).map((d) => addDays(d, shift))
+          });
+        }
+      } else if (scope === "one") {
+        orig.exdates = [...new Set([...(orig.exdates || []), inst])];
+        touch(orig);
+        events.push(touch({ id: uid(), ...data, repeat: null, exdates: [] }));
+      } else if (scope === "after") {
+        const k = occurrenceIndex(orig, inst);
+        const oldRep = { ...orig.repeat };
+        const laterEx = (orig.exdates || []).filter((d) => d >= inst);
+        endSeriesBefore(orig, inst);
+        let nr = repeat;
+        // 回数指定のまま変えていなければ、残りの回数を引き継ぐ
+        if (nr && oldRep.endType === "count" && nr.endType === "count" && nr.count === oldRep.count) {
+          nr = { ...nr, count: Math.max(1, oldRep.count - k) };
+        }
+        const shift = daysBetween(inst, data.date);
+        events.push(touch({
+          id: uid(), ...data, repeat: nr,
+          exdates: nr ? laterEx.map((d) => addDays(d, shift)) : []
+        }));
+      }
+    }
   }
   persist();
   $("editDlg").close();
   jumpTo(data.date);
 };
 
-$("deleteBtn").onclick = () => {
+$("deleteBtn").onclick = async () => {
   if (!editingId) return;
-  if (!confirm("この予定を削除しますか？")) return;
-  removeEvent(editingId);
+  const orig = events.find((e) => e.id === editingId);
+  if (!orig) return;
+  if (!orig.repeat) {
+    if (!confirm("この予定を削除しますか？")) return;
+    removeEvent(editingId);
+  } else {
+    const inst = editingInstanceDate || orig.date;
+    let scope = await askScope("繰り返しの予定を削除", "どの予定を削除しますか？");
+    if (!scope) return;
+    if (scope === "after" && inst === orig.date) scope = "all";
+    if (scope === "all") removeEvent(editingId);
+    if (scope === "one") {
+      orig.exdates = [...new Set([...(orig.exdates || []), inst])];
+      touch(orig);
+    }
+    if (scope === "after") endSeriesBefore(orig, inst);
+  }
   persist();
   $("editDlg").close();
   render();
+};
+
+// 複製：同じ内容で新しい予定を作る（日付を変えて保存）
+$("dupBtn").onclick = () => {
+  const ev = {
+    title: $("fTitle").value.trim(),
+    date: $("fDate").value || selected,
+    start: $("fStart").value,
+    end: $("fEnd").value,
+    memo: $("fMemo").value.trim(),
+    color: editingColor,
+    endDate: $("fSpan").checked ? $("fEndDate").value : ""
+  };
+  openEdit(ev, { duplicate: true });
+  $("fDate").focus();
 };
 
 // ===== iPhone標準カレンダーへの書き出し（.ics） =====
@@ -712,17 +1381,31 @@ function buildIcs(list) {
     if (e.start) {
       // 時刻はタイムゾーンなし（iPhoneの現在地の時刻として扱われる）
       lines.push(`DTSTART:${icsDateTime(e.date, e.start)}`);
-      if (e.end && e.end > e.start) {
-        lines.push(`DTEND:${icsDateTime(e.date, e.end)}`);
+      const endDay = spanDays(e) ? e.endDate : e.date;
+      if (e.end && (endDay > e.date || e.end > e.start)) {
+        lines.push(`DTEND:${icsDateTime(endDay, e.end)}`);
       } else {
-        const t = addOneHour(e.date, e.start);
+        const t = addOneHour(endDay, e.start);
         lines.push(`DTEND:${icsDateTime(t.date, t.time)}`);
       }
     } else {
-      const next = parseYmd(e.date);
-      next.setDate(next.getDate() + 1);
+      // 終日：終了日の翌日を DTEND にする（.icsの決まり）
+      const next = addDays(spanDays(e) ? e.endDate : e.date, 1);
       lines.push(`DTSTART;VALUE=DATE:${icsDate(e.date)}`);
-      lines.push(`DTEND;VALUE=DATE:${icsDate(ymd(next))}`);
+      lines.push(`DTEND;VALUE=DATE:${icsDate(next)}`);
+    }
+    if (e.repeat) {
+      // 繰り返し（iPhoneのカレンダーでも繰り返しの予定として登録される）
+      const r = e.repeat;
+      const parts = [`FREQ=${r.freq.toUpperCase()}`, `INTERVAL=${Math.max(1, r.interval || 1)}`];
+      if (r.endType === "until" && r.until) {
+        parts.push(e.start ? `UNTIL=${icsDate(r.until)}T235959` : `UNTIL=${icsDate(r.until)}`);
+      }
+      if (r.endType === "count" && r.count) parts.push(`COUNT=${r.count}`);
+      lines.push(`RRULE:${parts.join(";")}`);
+      for (const x of e.exdates || []) {
+        lines.push(e.start ? `EXDATE:${icsDateTime(x, e.start)}` : `EXDATE;VALUE=DATE:${icsDate(x)}`);
+      }
     }
     lines.push(`SUMMARY:${icsEscape(e.title || "（無題）")}`);
     if (e.memo) lines.push(`DESCRIPTION:${icsEscape(e.memo)}`);
@@ -762,9 +1445,22 @@ $("icsOneBtn").onclick = () => {
     date: $("fDate").value,
     start: $("fStart").value,
     end: $("fEnd").value,
-    memo: $("fMemo").value.trim()
+    memo: $("fMemo").value.trim(),
+    endDate: $("fSpan").checked ? $("fEndDate").value : "",
+    repeat: readRepeatForm(),
+    exdates: []
   };
   if (!ev.date) { alert("日付を入れてください"); return; }
+  if (!ev.endDate && ev.start && ev.end && ev.end < ev.start) ev.endDate = addDays(ev.date, 1);
+  // 繰り返しの予定は、最初の日から繰り返し全体を書き出す
+  const series = editingId ? events.find((e) => e.id === editingId) : null;
+  if (ev.repeat && series && series.repeat && editingInstanceDate) {
+    const shift = daysBetween(editingInstanceDate, ev.date);
+    const span = spanDays(ev);
+    ev.date = addDays(series.date, shift);
+    if (span) ev.endDate = addDays(ev.date, span);
+    ev.exdates = (series.exdates || []).map((d) => addDays(d, shift));
+  }
   exportToIos([ev]);
 };
 
@@ -806,6 +1502,7 @@ function buildPrompt() {
 - 「明日」「来週水曜」などの相対表現は今日を基準に具体的な日付にしてください。
 - 時刻は24時間表記の "HH:MM" にしてください（「18」→"18:00"、「16:30」→"16:30"）。時刻がなければ空文字にしてください。
 - 終了時刻が書かれていなければ空文字にしてください（「18-」は開始18:00・終了なし）。
+- 日をまたぐ予定（例：22:00〜翌2:00、11/20〜11/22の旅行）は、終わる日を endDate にしてください。同じ日に終わる予定では endDate を空文字にしてください。
 - 同じ予定を重複して出さないでください。画面の端で切れている行は、同じ内容が完全な形で写っていればそちらを使ってください。
 - 予定が見つからなければ events を空配列にしてください。
 
@@ -829,6 +1526,17 @@ LINEなどのグループトークで、次のような書き方の一覧はサ�
 - 持ち場・休憩・補足などは memo に入れてください。
 - category は "work" にしてください。
 
+【確定シフト表（複数人が並んだ表）】
+縦にスタッフ名、横に日付が並び、各マスに出勤・退勤の時刻が書かれた表は、バイトの確定シフト表です。
+${rules.shiftName ? `- 読み取るのは「${rules.shiftName}」の行だけです。ほかの人の行は絶対に出さないでください。
+- 名前は旧字体・新字体の違い（齊・斉・斎、髙・高 など）や、姓と名の間の空白の有無を区別せずに探してください。
+- その行の各マスについて、上の時刻を start、下の時刻を end にしてください。空欄や網かけのマスは出勤なしです。
+- 取り消し線で消された時刻があり、近くに手書きの修正があれば、修正後の時刻を使ってください。
+- 表の上にある期間（例：「2026-11-02 ~ 2026-11-08」）を shiftTable の from・to にしてください。期間が書かれていなければ、表の日付の最初と最後にしてください。
+- 該当する行が見つかったら shiftTable.nameFound を true、見つからなければ false にしてください（見つからないときは、ほかの人の行を代わりに出さず events を空にしてください）。
+- title は「バイト」、category は "work" にしてください。` : `- 自分の名前が設定されていないため、行を特定できません。events は空にして、shiftTable.nameFound を false にしてください。`}
+- 確定シフト表でない画像のときは、shiftTable を null にしてください。
+
 【それ以外】
 - title は短く（例：「ゼミ」「歯医者」「レポート締切」）。場所や持ち物などの補足は memo に入れてください。
 - group は空文字にしてください。
@@ -841,7 +1549,8 @@ ${rules.text.trim() ? `
 ${rules.text.trim()}
 ` : ""}
 次のJSONだけを出力してください（説明文やコードブロックは不要）：
-{"events":[{"date":"YYYY-MM-DD","start":"HH:MM","end":"HH:MM","title":"...","memo":"...","group":"...","category":"circle|work|event|deadline|other"}]}`;
+{"events":[{"date":"YYYY-MM-DD","endDate":"","start":"HH:MM","end":"HH:MM","title":"...","memo":"...","group":"...","category":"circle|work|event|deadline|other"}],"shiftTable":null}
+確定シフト表のときは "shiftTable":{"from":"YYYY-MM-DD","to":"YYYY-MM-DD","nameFound":true} にしてください。`;
 }
 
 async function extractEvents(base64List) {
@@ -888,10 +1597,17 @@ async function extractEvents(base64List) {
   if (s < 0 || e < 0) throw new Error("読み取り結果を解釈できませんでした");
   const parsed = JSON.parse(text.slice(s, e + 1));
   const list = Array.isArray(parsed.events) ? parsed.events : [];
-  return list
+  // 確定シフト表のときは期間と、名前の行が見つかったかを受け取る
+  const st = parsed.shiftTable;
+  const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || "");
+  const shiftTable = st && typeof st === "object" && isDate(st.from) && isDate(st.to) && st.from <= st.to
+    ? { from: st.from, to: st.to, nameFound: !!st.nameFound }
+    : (st && typeof st === "object" ? { from: "", to: "", nameFound: false, invalid: true } : null);
+  const evs = list
     .filter((x) => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date || ""))
     .map((x) => ({
       date: x.date,
+      endDate: /^\d{4}-\d{2}-\d{2}$/.test(x.endDate || "") && x.endDate > x.date ? x.endDate : "",
       start: /^\d{2}:\d{2}$/.test(x.start || "") ? x.start : "",
       end: /^\d{2}:\d{2}$/.test(x.end || "") ? x.end : "",
       title: String(x.title || "").replace(/\s*[(（]\d+[)）]\s*$/, "").trim(),
@@ -899,10 +1615,207 @@ async function extractEvents(base64List) {
       group: String(x.group || "").replace(/\s*[(（]\d+[)）]\s*$/, "").trim(),
       category: ["circle", "work", "event", "deadline", "other"].includes(x.category) ? x.category : "other"
     }));
+  return { events: evs, shiftTable };
 }
 
 // 読み取った候補 {date,start,end,title,memo,color,on,open}
 let candidates = [];
+// 確定シフト表のときの変更点 {type:"change"|"add"|"delete"|"same", date, cur, fin, on, open}
+let importMode = "normal";
+let shiftChanges = [];
+let shiftInfo = null;
+
+// ===== 確定シフト表の反映 =====
+const isWork = (e) => e.category === "work" || /バイト/.test(e.title || "");
+
+// カレンダーのバイトの予定と、確定シフトを日ごとに比べる
+function buildShiftChanges(found, table) {
+  const changes = [];
+  const byStart = (a, b) => (a.start || "").localeCompare(b.start || "");
+  for (let d = table.from; d <= table.to; d = addDays(d, 1)) {
+    const cur = eventsOn(d).filter((e) => isWork(e) && (e.pos === "single" || e.pos === "first")).sort(byStart);
+    const fin = found.filter((x) => x.date === d).sort(byStart);
+    const n = Math.max(cur.length, fin.length);
+    for (let i = 0; i < n; i++) {
+      const c = cur[i], f = fin[i] ? { ...fin[i] } : null;
+      if (c && f) {
+        const same = (c.start || "") === (f.start || "") && (c.end || "") === (f.end || "");
+        changes.push({ type: same ? "same" : "change", date: d, cur: c, fin: f, on: !same, open: false });
+      } else if (f) {
+        changes.push({ type: "add", date: d, cur: null, fin: f, on: true, open: false });
+      } else {
+        changes.push({ type: "delete", date: d, cur: c, fin: null, on: true, open: false });
+      }
+    }
+  }
+  return changes;
+}
+
+const SHIFT_LABEL = { change: "変更", add: "追加", delete: "削除", same: "そのまま" };
+const range = (e) => (e.start ? `${e.start}〜${e.end || ""}` : "終日");
+
+function updateShiftButton() {
+  const n = shiftChanges.filter((c) => c.on && c.type !== "same").length;
+  $("importAddBtn").textContent = n ? `選択した${n}件を反映` : "反映";
+  $("importAddBtn").disabled = n === 0;
+}
+
+function renderShiftChanges() {
+  const body = $("importBody");
+  body.innerHTML = "";
+  $("importActions").hidden = false;
+  $("icsRow").hidden = true;
+
+  const info = document.createElement("div");
+  info.className = "shift-info";
+  const from = parseYmd(shiftInfo.from), to = parseYmd(shiftInfo.to);
+  info.textContent = `確定シフト表：${from.getMonth() + 1}/${from.getDate()}〜${to.getMonth() + 1}/${to.getDate()}（${rules.shiftName} の行）`;
+  body.appendChild(info);
+
+  const sub = document.createElement("div");
+  sub.className = "note";
+  sub.style.margin = "4px 0 8px";
+  sub.textContent = "カレンダーのバイトの予定と比べた結果です。チェックしたものを反映します。";
+  body.appendChild(sub);
+
+  for (const c of shiftChanges) {
+    const box = document.createElement("div");
+    box.className = "cand" + (c.on || c.type === "same" ? " on" : "");
+    const row = document.createElement("div");
+    row.className = "cand-row";
+
+    const check = document.createElement("button");
+    check.className = "check";
+    check.textContent = "✓";
+    if (c.type === "same") check.style.visibility = "hidden";
+
+    const tag = document.createElement("span");
+    tag.className = `shift-tag ${c.type}`;
+    tag.textContent = SHIFT_LABEL[c.type];
+
+    const main = document.createElement("button");
+    main.className = "cand-main";
+    const when = document.createElement("div");
+    when.className = "cand-when";
+    when.textContent = fmtDate(c.date);
+    const what = document.createElement("div");
+    what.className = "cand-title";
+    const draw = () => {
+      if (c.type === "change") what.textContent = `${range(c.cur)} → ${range(c.fin)}`;
+      if (c.type === "add") what.textContent = range(c.fin);
+      if (c.type === "delete") what.textContent = `${range(c.cur)}（確定版にない）`;
+      if (c.type === "same") what.textContent = range(c.cur);
+    };
+    draw();
+    main.append(when, what);
+    row.append(check, tag, main);
+
+    if (c.type === "change" || c.type === "add") {
+      const editBtn = document.createElement("button");
+      editBtn.className = "cand-edit-btn";
+      editBtn.textContent = c.open ? "閉じる" : "編集";
+      editBtn.onclick = () => { c.open = !c.open; renderShiftChanges(); };
+      row.appendChild(editBtn);
+    }
+    box.appendChild(row);
+
+    if (c.type !== "same") {
+      const toggle = () => {
+        c.on = !c.on;
+        box.classList.toggle("on", c.on);
+        updateShiftButton();
+      };
+      check.onclick = toggle;
+      main.onclick = toggle;
+    }
+
+    // 読み間違いがあれば、反映する前に時刻を直せる
+    if (c.open) {
+      const detail = document.createElement("div");
+      detail.className = "cand-detail";
+      detail.innerHTML = `
+        <div class="row">
+          <div><label>開始</label><input class="field" type="time" data-k="start"></div>
+          <div><label>終了</label><input class="field" type="time" data-k="end"></div>
+        </div>`;
+      detail.querySelectorAll("[data-k]").forEach((inp) => {
+        inp.value = c.fin[inp.dataset.k] || "";
+        inp.oninput = () => { c.fin[inp.dataset.k] = inp.value; draw(); };
+      });
+      detail.querySelectorAll('input[type="time"]').forEach(enhanceTimeInput);
+      box.appendChild(detail);
+    }
+    body.appendChild(box);
+  }
+  if (!shiftChanges.length) {
+    body.insertAdjacentHTML("beforeend", '<div class="loading">この期間はシフトがなく、カレンダーにもバイトの予定はありません</div>');
+  }
+  updateShiftButton();
+}
+
+// 名前が未設定・見つからないときの案内
+function renderShiftProblem(message) {
+  const body = $("importBody");
+  body.innerHTML = "";
+  const msg = document.createElement("div");
+  msg.className = "loading";
+  msg.textContent = message;
+  body.appendChild(msg);
+  const btn = document.createElement("button");
+  btn.className = "btn";
+  btn.style.width = "100%";
+  btn.textContent = "設定で名前を確認する";
+  btn.onclick = () => {
+    $("importDlg").close();
+    openSettings();
+    setTimeout(() => { $("sShiftName").scrollIntoView({ block: "center" }); $("sShiftName").focus(); }, 50);
+  };
+  body.appendChild(btn);
+  $("importActions").hidden = false;
+  $("icsRow").hidden = true;
+  $("importAddBtn").disabled = true;
+  $("importAddBtn").textContent = "反映";
+}
+
+// チェックした変更をカレンダーに反映する
+function applyShiftChanges() {
+  const picked = shiftChanges.filter((c) => c.on && c.type !== "same");
+  for (const c of picked) {
+    if (c.type === "add") {
+      events.push(touch({
+        id: uid(), date: c.date, start: c.fin.start, end: c.fin.end,
+        title: c.fin.title || "バイト", memo: c.fin.memo || "",
+        color: colorForCategory("work"), group: "", category: "work",
+        repeat: null, exdates: []
+      }));
+      continue;
+    }
+    const cur = c.cur;
+    if (cur.seriesId) {
+      // 繰り返しの予定なら、その日だけ外して（変更なら）1回だけの予定を作る
+      const s = events.find((e) => e.id === cur.seriesId);
+      if (s) {
+        s.exdates = [...new Set([...(s.exdates || []), c.date])];
+        touch(s);
+      }
+      if (c.type === "change") {
+        events.push(touch({
+          id: uid(), date: c.date, start: c.fin.start, end: c.fin.end,
+          title: cur.title, memo: cur.memo || "", color: cur.color, group: cur.group || "",
+          category: "work", repeat: null, exdates: []
+        }));
+      }
+    } else if (c.type === "change") {
+      const e = events.find((x) => x.id === cur.id);
+      if (e) { e.start = c.fin.start; e.end = c.fin.end; touch(e); }
+    } else if (c.type === "delete") {
+      removeEvent(cur.id);
+    }
+  }
+  persist();
+  $("importDlg").close();
+  jumpTo(shiftInfo.from);
+}
 
 function updateImportButton() {
   const n = candidates.filter((c) => c.on).length;
@@ -999,6 +1912,7 @@ function renderCandidates() {
           title.textContent = c.title || "（無題）";
         };
       });
+      detail.querySelectorAll('input[type="time"]').forEach(enhanceTimeInput);
       buildColorPicker(detail.querySelector(".colors"), c.color, (hex) => {
         c.color = hex;
         bar.style.background = hex;
@@ -1019,8 +1933,12 @@ async function handleFiles(files) {
     return;
   }
   candidates = [];
+  shiftChanges = [];
+  shiftInfo = null;
+  importMode = "normal";
   $("thumbs").innerHTML = "";
   $("importActions").hidden = true;
+  $("icsRow").hidden = false;
   $("icsToggle").checked = load(KEY_ICS, true);
   $("importBody").innerHTML = '<div class="loading"><div class="spinner"></div>読み取り中…</div>';
   $("importDlg").showModal();
@@ -1034,7 +1952,28 @@ async function handleFiles(files) {
       $("thumbs").appendChild(t);
       b64.push(imageToBase64(img));
     }
-    const found = await extractEvents(b64);
+    const { events: found, shiftTable } = await extractEvents(b64);
+
+    // 確定シフト表のときは、カレンダーのバイトの予定と比べて書き換える
+    if (shiftTable) {
+      importMode = "shift";
+      if (!rules.shiftName) {
+        renderShiftProblem("確定シフト表のようです。設定の「シフト表での自分の名前」を入れてから、もう一度読み込んでください。");
+        return;
+      }
+      if (!shiftTable.nameFound || shiftTable.invalid) {
+        renderShiftProblem(`シフト表から「${rules.shiftName}」の行を読み取れませんでした。名前の書き方が表と同じか確認するか、名前の行がはっきり写るように撮り直してください。`);
+        return;
+      }
+      shiftInfo = shiftTable;
+      const work = found
+        .filter((x) => x.date >= shiftTable.from && x.date <= shiftTable.to)
+        .map((x) => ({ ...x, title: "バイト", category: "work" }));
+      shiftChanges = buildShiftChanges(work, shiftTable);
+      renderShiftChanges();
+      return;
+    }
+
     // 種類（サークル・バイトなど）ごとの色にする
     candidates = found.map((x) => ({
       ...x, color: colorForCategory(x.category), on: true, open: false
@@ -1052,10 +1991,11 @@ async function handleFiles(files) {
 }
 
 $("importAddBtn").onclick = () => {
+  if (importMode === "shift") { applyShiftChanges(); return; }
   const picked = candidates.filter((c) => c.on && c.date);
   if (!picked.length) return;
   const added = picked.map((c) => touch({
-    id: uid(), date: c.date, start: c.start, end: c.end,
+    id: uid(), date: c.date, endDate: c.endDate || "", start: c.start, end: c.end,
     title: c.title, memo: c.memo, color: c.color,
     group: c.group || "", category: c.category || "other"
   }));
@@ -1142,14 +2082,20 @@ function normEvent(e) {
   return {
     id: e.id, date: e.date, start: e.start || "", end: e.end || "",
     title: e.title || "", memo: e.memo || "", color: e.color || DEFAULT_COLOR,
-    group: e.group || "", category: e.category || "other", updatedAt: e.updatedAt || 0
+    group: e.group || "", category: e.category || "other", updatedAt: e.updatedAt || 0,
+    repeat: e.repeat ? {
+      freq: e.repeat.freq, interval: e.repeat.interval || 1, endType: e.repeat.endType || "never",
+      until: e.repeat.until || "", count: e.repeat.count || 0
+    } : null,
+    exdates: [...(e.exdates || [])].sort(),
+    endDate: e.endDate && e.endDate > e.date ? e.endDate : ""
   };
 }
 function signature(data) {
   const ev = data.events.map(normEvent).sort((a, b) => a.id.localeCompare(b.id));
   const tb = Object.keys(data.tombstones).sort().map((k) => [k, data.tombstones[k]]);
   const r = data.rules || { text: "", updatedAt: 0 };
-  return JSON.stringify([ev, tb, r.text || "", r.updatedAt || 0]);
+  return JSON.stringify([ev, tb, r.text || "", r.shiftName || "", r.updatedAt || 0]);
 }
 
 // 端末内のデータとGitHubのデータを予定ごとに統合する（新しく変更したほうを残す）
@@ -1178,8 +2124,8 @@ function mergeData(remote) {
   // 読み取りのルールは、あとから変更したほうを残す
   const rr = remote.rules || { text: "", updatedAt: 0 };
   const mergedRules = (rules.updatedAt || 0) > (rr.updatedAt || 0)
-    ? { text: rules.text || "", updatedAt: rules.updatedAt || 0 }
-    : { text: rr.text || "", updatedAt: rr.updatedAt || 0 };
+    ? { text: rules.text || "", shiftName: rules.shiftName || "", updatedAt: rules.updatedAt || 0 }
+    : { text: rr.text || "", shiftName: rr.shiftName || "", updatedAt: rr.updatedAt || 0 };
   return { events: merged, tombstones: tombs, rules: mergedRules };
 }
 
@@ -1215,7 +2161,7 @@ async function syncNow() {
           events: Array.isArray(d.events) ? d.events.filter((e) => e && e.id) : [],
           tombstones: d.tombstones && typeof d.tombstones === "object" ? d.tombstones : {},
           rules: d.rules && typeof d.rules.text === "string"
-            ? { text: d.rules.text, updatedAt: d.rules.updatedAt || 0 }
+            ? { text: d.rules.text, shiftName: d.rules.shiftName || "", updatedAt: d.rules.updatedAt || 0 }
             : { text: "", updatedAt: 0 }
         };
       }
@@ -1226,12 +2172,13 @@ async function syncNow() {
       if (mergedSig !== signature({ events, tombstones, rules })) {
         events = merged.events;
         tombstones = merged.tombstones;
-        const rulesChanged = merged.rules.text !== rules.text;
+        const rulesChanged = merged.rules.text !== rules.text || merged.rules.shiftName !== rules.shiftName;
         rules = merged.rules;
         saveLocal();
         render();
         // 設定画面を開いていて、入力中でなければルール欄も最新にする
         if (rulesChanged && document.activeElement !== $("sRules")) $("sRules").value = rules.text;
+        if (rulesChanged && document.activeElement !== $("sShiftName")) $("sShiftName").value = rules.shiftName || "";
       }
 
       // 3. GitHub側と違えば保存する
@@ -1276,6 +2223,7 @@ function openSettings() {
   $("gRepo").value = gh.repo || "calendar-data";
   $("gToken").value = gh.token;
   $("sRules").value = rules.text || "";
+  $("sShiftName").value = rules.shiftName || "";
   showRulesStatus();
   showSyncStatus();
   $("settingsDlg").showModal();
@@ -1296,8 +2244,12 @@ $("teachBtn").onclick = () => {
 };
 $("rulesSaveBtn").onclick = () => {
   const text = $("sRules").value.trim();
-  if (text === (rules.text || "")) { showRulesStatus("変更はありません。"); return; }
-  rules = { text, updatedAt: Date.now() };
+  const shiftName = $("sShiftName").value.trim();
+  if (text === (rules.text || "") && shiftName === (rules.shiftName || "")) {
+    showRulesStatus("変更はありません。");
+    return;
+  }
+  rules = { text, shiftName, updatedAt: Date.now() };
   persist();
   showRulesStatus("保存しました。");
 };
@@ -1348,7 +2300,9 @@ $("jsonInput").onchange = async (e) => {
     const next = list.map((x) => touch({
       id: x.id || uid(), date: x.date, start: x.start || "", end: x.end || "",
       title: x.title || "", memo: x.memo || "", color: x.color || DEFAULT_COLOR,
-      group: x.group || "", category: x.category || "other"
+      group: x.group || "", category: x.category || "other",
+      repeat: x.repeat || null, exdates: Array.isArray(x.exdates) ? x.exdates : [],
+      endDate: x.endDate || ""
     }));
     // 置き換えで消える予定は、ほかの端末からも消えるように削除の記録を残す
     const keep = new Set(next.map((x) => x.id));
@@ -1372,6 +2326,98 @@ document.querySelectorAll("[data-close]").forEach((b) => {
 // 背景タップで閉じる
 document.querySelectorAll("dialog").forEach((dlg) => {
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+});
+
+// ===== 検索・これからの予定 =====
+function qRow(dateText, e, onClick) {
+  const row = document.createElement("button");
+  row.className = "q-row";
+  const bar = document.createElement("div");
+  bar.className = "ev-bar";
+  bar.style.background = colorHex(e.color);
+  const dt = document.createElement("div");
+  dt.className = "q-date";
+  dt.textContent = dateText;
+  const body = document.createElement("div");
+  body.className = "q-body";
+  const t = document.createElement("div");
+  t.className = "q-title";
+  t.textContent = e.title || "（無題）";
+  body.appendChild(t);
+  const subText = [e.repeat ? `↻ ${describeRepeat(e)}` : "", e.memo || ""].filter(Boolean).join("　");
+  if (subText) {
+    const s = document.createElement("div");
+    s.className = "q-sub";
+    s.textContent = subText;
+    body.appendChild(s);
+  }
+  row.append(bar, dt, body);
+  row.onclick = onClick;
+  return row;
+}
+function goFromSearch(date) {
+  $("searchDlg").close();
+  jumpTo(date);
+}
+function renderSearch() {
+  const q = $("qInput").value.trim().toLowerCase();
+  const box = $("qResults");
+  box.innerHTML = "";
+  const today = todayStr();
+  const head = (text) => {
+    const h = document.createElement("div");
+    h.className = "q-head";
+    h.textContent = text;
+    box.appendChild(h);
+  };
+
+  if (!q) {
+    // 何も入れていないときは、これから30日間の予定
+    head("これから30日間の予定");
+    let n = 0;
+    for (let i = 0; i < 30; i++) {
+      const d = addDays(today, i);
+      for (const e of eventsOn(d)) {
+        const p = parseYmd(d);
+        if (e.pos === "middle" || e.pos === "last") continue; // 日をまたぐ予定は開始日にだけ出す
+        box.appendChild(qRow(`${p.getMonth() + 1}/${p.getDate()}（${WD[p.getDay()]}）\n${spanDays(e) ? "〜" + md(e.endDate) : (e.start || "終日")}`, e, () => goFromSearch(d)));
+        n++;
+      }
+    }
+    if (!n) box.insertAdjacentHTML("beforeend", '<div class="empty">予定はありません</div>');
+    return;
+  }
+
+  // タイトル・メモ・グループ名で探す（繰り返しの予定は1件として、次の予定日を表示）
+  const hits = events
+    .filter((e) => [e.title, e.memo, e.group].some((s) => (s || "").toLowerCase().includes(q)))
+    .map((e) => {
+      const next = e.repeat ? nextOccurrence(e, today) : null;
+      return { e, date: e.repeat ? (next || e.date) : e.date, upcoming: e.repeat ? !!next : e.date >= today };
+    });
+  const up = hits.filter((h) => h.upcoming).sort((a, b) => a.date.localeCompare(b.date));
+  const past = hits.filter((h) => !h.upcoming).sort((a, b) => b.date.localeCompare(a.date));
+  const put = (h) => {
+    const p = parseYmd(h.date);
+    const y = p.getFullYear() !== new Date().getFullYear() ? `${p.getFullYear()}/` : "";
+    box.appendChild(qRow(`${y}${p.getMonth() + 1}/${p.getDate()}（${WD[p.getDay()]}）\n${spanDays(h.e) ? "〜" + md(addDays(h.date, spanDays(h.e))) : (h.e.start || "終日")}`, h.e, () => goFromSearch(h.date)));
+  };
+  if (!hits.length) { box.insertAdjacentHTML("beforeend", '<div class="empty">見つかりませんでした</div>'); return; }
+  if (up.length) { head(`これから（${up.length}件）`); up.forEach(put); }
+  if (past.length) { head(`過去（${past.length}件）`); past.forEach(put); }
+}
+$("searchBtn").onclick = () => {
+  $("qInput").value = "";
+  renderSearch();
+  $("searchDlg").showModal();
+};
+$("qInput").addEventListener("input", renderSearch);
+
+// 画面の大きさが変わったら、マスの高さを計算し直す
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(render, 150);
 });
 
 $("prevBtn").onclick = () => goMonth(-1);
@@ -1403,7 +2449,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v2.2";
+const APP_VERSION = "v3.3";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
