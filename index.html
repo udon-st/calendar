@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>カレンダー</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -34,12 +34,20 @@
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: var(--bg); color: var(--fg); }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
-    padding: calc(env(safe-area-inset-top) + 24px) 12px calc(env(safe-area-inset-bottom) + 96px);
-    -webkit-user-select: none; user-select: none;
+  html, body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    height: 100%; overflow: hidden; overscroll-behavior: none;
   }
+  /* 画面全体は固定（スクロールやバウンドをしない）。予定一覧だけが中でスクロールする */
+  body {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    padding: calc(env(safe-area-inset-top) + 24px) 12px 0;
+    -webkit-user-select: none; user-select: none;
+    touch-action: manipulation;
+  }
+  header, .weekdays, .grid { flex: none; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
   input, textarea { font: inherit; color: var(--fg); -webkit-user-select: text; user-select: text; }
 
@@ -58,7 +66,10 @@
   .weekdays div:first-child { color: var(--sun); }
   .weekdays div:last-child { color: var(--sat); }
   .cell {
-    min-height: 78px; display: flex; flex-direction: column; align-items: stretch;
+    /* 小さい画面でも予定一覧の場所が残るように、マスの高さを画面に合わせて縮める */
+    height: min(78px, calc((100vh - 300px) / 6));
+    height: min(78px, calc((100dvh - 300px) / 6));
+    display: flex; flex-direction: column; align-items: stretch;
     padding: 3px 1px 4px; gap: 2px; border-top: 1px solid var(--line); overflow: hidden;
   }
   .num {
@@ -80,7 +91,12 @@
   .more { font-size: 9px; color: var(--sub); text-align: center; line-height: 12px; }
 
   /* 選択日の予定 */
-  .day { border-top: 1px solid var(--line); margin-top: 4px; padding: 16px 4px 0; }
+  .day {
+    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--line); margin-top: 4px;
+    padding: 16px 4px calc(env(safe-area-inset-bottom) + 96px);
+  }
   .day-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
   .ev { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); width: 100%; text-align: left; align-items: stretch; }
   .ev-bar { width: 4px; border-radius: 2px; flex: none; }
@@ -179,6 +195,7 @@
     font-size: 14px; color: var(--fg);
   }
   .ics-toggle input { width: 20px; height: 20px; accent-color: var(--fg); }
+  .teach-link { display: block; font-size: 13px; color: var(--sub); text-decoration: underline; padding: 12px 0 4px; text-align: left; }
 
   .loading { text-align: center; padding: 32px 0; color: var(--sub); font-size: 14px; }
   .spinner {
@@ -256,6 +273,7 @@
     </div>
     <div class="thumbs" id="thumbs"></div>
     <div id="importBody"></div>
+    <button class="teach-link" id="teachBtn">読み取りがおかしいときは「読み取りのルール」で教える ›</button>
     <div class="submit-bar" id="importActions" hidden>
       <label class="ics-toggle">
         <input type="checkbox" id="icsToggle" checked>
@@ -284,6 +302,16 @@
     <div class="actions">
       <button class="btn primary" id="sSaveBtn">保存</button>
     </div>
+
+    <label style="margin-top:24px">読み取りのルール（AIへの指示）</label>
+    <textarea class="field" id="sRules" rows="7" placeholder="例：
+・△は参加未定という意味。メモにそのまま残す
+・バイトのシフトは「11/5 17-22 ホール」のように書かれている
+・予定名に絵文字は入れない"></textarea>
+    <div class="actions">
+      <button class="btn" id="rulesSaveBtn">ルールを保存</button>
+    </div>
+    <p class="note" id="rulesNote">ここに書いた内容は、スクショを読み取るたびにAIへ一緒に送られます（普段のルールより優先）。うまく読めなかったときに、正しい読み方を書き足していくと精度が上がります。同期を設定していれば、スマホとPCで共有されます。</p>
 
     <label style="margin-top:24px">同期（GitHub）</label>
     <input class="field" id="gOwner" placeholder="GitHubのユーザー名（例：udon-st）" autocomplete="off" autocapitalize="off">
@@ -414,10 +442,15 @@ let events = load(KEY_EVENTS, []).map((e) => ({ color: DEFAULT_COLOR, updatedAt:
 const KEY_TOMBS = "cal-deleted";
 let tombstones = load(KEY_TOMBS, {});
 
+// 読み取りのルール（AIへの追加の指示）{ text, updatedAt }
+const KEY_RULES = "cal-rules";
+let rules = load(KEY_RULES, { text: "", updatedAt: 0 });
+
 // 端末内に保存するだけ（同期はしない）
 function saveLocal() {
   save(KEY_EVENTS, events);
   save(KEY_TOMBS, tombstones);
+  save(KEY_RULES, rules);
 }
 // 予定を変更したときに呼ぶ：端末内に保存して、少し待ってから同期する
 function persist() {
@@ -803,7 +836,10 @@ LINEなどのグループトークで、次のような書き方の一覧はサ�
   - "event"：ライブ、コンサート、式典、面接、説明会などのフォーマルな用事
   - "deadline"：提出期限、申込締切などの重要な締め切り
   - "other"：上のどれにも当てはまらないもの
-
+${rules.text.trim() ? `
+【ユーザーが決めた追加のルール（上のルールと食い違う場合はこちらを優先）】
+${rules.text.trim()}
+` : ""}
 次のJSONだけを出力してください（説明文やコードブロックは不要）：
 {"events":[{"date":"YYYY-MM-DD","start":"HH:MM","end":"HH:MM","title":"...","memo":"...","group":"...","category":"circle|work|event|deadline|other"}]}`;
 }
@@ -1112,7 +1148,8 @@ function normEvent(e) {
 function signature(data) {
   const ev = data.events.map(normEvent).sort((a, b) => a.id.localeCompare(b.id));
   const tb = Object.keys(data.tombstones).sort().map((k) => [k, data.tombstones[k]]);
-  return JSON.stringify([ev, tb]);
+  const r = data.rules || { text: "", updatedAt: 0 };
+  return JSON.stringify([ev, tb, r.text || "", r.updatedAt || 0]);
 }
 
 // 端末内のデータとGitHubのデータを予定ごとに統合する（新しく変更したほうを残す）
@@ -1138,7 +1175,12 @@ function mergeData(remote) {
   for (const [id, t] of Object.entries(tombs)) {
     if (now - t > TOMB_KEEP_MS) delete tombs[id];
   }
-  return { events: merged, tombstones: tombs };
+  // 読み取りのルールは、あとから変更したほうを残す
+  const rr = remote.rules || { text: "", updatedAt: 0 };
+  const mergedRules = (rules.updatedAt || 0) > (rr.updatedAt || 0)
+    ? { text: rules.text || "", updatedAt: rules.updatedAt || 0 }
+    : { text: rr.text || "", updatedAt: rr.updatedAt || 0 };
+  return { events: merged, tombstones: tombs, rules: mergedRules };
 }
 
 async function syncNow() {
@@ -1157,7 +1199,7 @@ async function syncNow() {
       const res = await fetch(`${ghRepoUrl()}/contents/${DATA_PATH}`, {
         cache: "no-store", headers: ghHeaders(false)
       });
-      let remote = { events: [], tombstones: {} };
+      let remote = { events: [], tombstones: {}, rules: { text: "", updatedAt: 0 } };
       let sha = null;
       if (res.status === 404) {
         // ファイルがまだない（初回）か、リポジトリ自体がないかを確かめる
@@ -1171,18 +1213,25 @@ async function syncNow() {
         const d = JSON.parse(b64decode(j.content || ""));
         remote = {
           events: Array.isArray(d.events) ? d.events.filter((e) => e && e.id) : [],
-          tombstones: d.tombstones && typeof d.tombstones === "object" ? d.tombstones : {}
+          tombstones: d.tombstones && typeof d.tombstones === "object" ? d.tombstones : {},
+          rules: d.rules && typeof d.rules.text === "string"
+            ? { text: d.rules.text, updatedAt: d.rules.updatedAt || 0 }
+            : { text: "", updatedAt: 0 }
         };
       }
 
       // 2. 統合して、端末側に反映する
       const merged = mergeData(remote);
       const mergedSig = signature(merged);
-      if (mergedSig !== signature({ events, tombstones })) {
+      if (mergedSig !== signature({ events, tombstones, rules })) {
         events = merged.events;
         tombstones = merged.tombstones;
+        const rulesChanged = merged.rules.text !== rules.text;
+        rules = merged.rules;
         saveLocal();
         render();
+        // 設定画面を開いていて、入力中でなければルール欄も最新にする
+        if (rulesChanged && document.activeElement !== $("sRules")) $("sRules").value = rules.text;
       }
 
       // 3. GitHub側と違えば保存する
@@ -1226,9 +1275,32 @@ function openSettings() {
   $("gOwner").value = gh.owner;
   $("gRepo").value = gh.repo || "calendar-data";
   $("gToken").value = gh.token;
+  $("sRules").value = rules.text || "";
+  showRulesStatus();
   showSyncStatus();
   $("settingsDlg").showModal();
 }
+
+// 読み取りのルール
+function showRulesStatus(msg) {
+  const base = "ここに書いた内容は、スクショを読み取るたびにAIへ一緒に送られます（普段のルールより優先）。うまく読めなかったときに、正しい読み方を書き足していくと精度が上がります。同期を設定していれば、スマホとPCで共有されます。";
+  $("rulesNote").textContent = msg ? `${msg}　${base}` : base;
+}
+// 読み取り結果の画面から、ルール欄を直接開く
+$("teachBtn").onclick = () => {
+  openSettings();
+  setTimeout(() => {
+    $("sRules").scrollIntoView({ block: "center" });
+    $("sRules").focus();
+  }, 50);
+};
+$("rulesSaveBtn").onclick = () => {
+  const text = $("sRules").value.trim();
+  if (text === (rules.text || "")) { showRulesStatus("変更はありません。"); return; }
+  rules = { text, updatedAt: Date.now() };
+  persist();
+  showRulesStatus("保存しました。");
+};
 $("gSaveBtn").onclick = () => {
   gh = {
     owner: $("gOwner").value.trim(),
@@ -1331,7 +1403,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v2.0";
+const APP_VERSION = "v2.2";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
