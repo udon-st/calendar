@@ -1,6 +1,6 @@
 // オフライン用のキャッシュ。ファイルを更新したら VERSION を上げる
 // （index.html の APP_VERSION も同じ値にそろえる）
-const VERSION = "v1.7";
+const VERSION = "v2.0";
 const CACHE = "calendar-" + VERSION;
 const FILES = [
   "./",

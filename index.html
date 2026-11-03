@@ -284,6 +284,17 @@
     <div class="actions">
       <button class="btn primary" id="sSaveBtn">保存</button>
     </div>
+
+    <label style="margin-top:24px">同期（GitHub）</label>
+    <input class="field" id="gOwner" placeholder="GitHubのユーザー名（例：udon-st）" autocomplete="off" autocapitalize="off">
+    <input class="field" id="gRepo" placeholder="データ用リポジトリ名（例：calendar-data）" autocomplete="off" autocapitalize="off" style="margin-top:8px">
+    <input class="field" id="gToken" type="password" placeholder="トークン（github_pat_...）" autocomplete="off" style="margin-top:8px">
+    <div class="actions">
+      <button class="btn" id="gSaveBtn">保存して同期</button>
+      <button class="btn" id="gSyncBtn">今すぐ同期</button>
+    </div>
+    <p class="note" id="syncNote">未設定です。設定すると、スマホとPCで予定が同期され、アプリを入れ直しても自動で復元されます。</p>
+
     <label style="margin-top:24px">データ</label>
     <div class="actions" style="margin-top:4px">
       <button class="btn" id="exportBtn">書き出し</button>
@@ -397,8 +408,29 @@ function save(key, value) {
 }
 
 // {id, date:"YYYY-MM-DD", start:"HH:MM", end:"HH:MM", title, memo, color}
-let events = load(KEY_EVENTS, []).map((e) => ({ color: DEFAULT_COLOR, ...e }));
-function persist() { save(KEY_EVENTS, events); }
+let events = load(KEY_EVENTS, []).map((e) => ({ color: DEFAULT_COLOR, updatedAt: 0, ...e }));
+
+// 削除した予定の記録 { id: 削除した時刻 }（ほかの端末にも削除を伝えるため）
+const KEY_TOMBS = "cal-deleted";
+let tombstones = load(KEY_TOMBS, {});
+
+// 端末内に保存するだけ（同期はしない）
+function saveLocal() {
+  save(KEY_EVENTS, events);
+  save(KEY_TOMBS, tombstones);
+}
+// 予定を変更したときに呼ぶ：端末内に保存して、少し待ってから同期する
+function persist() {
+  saveLocal();
+  scheduleSync();
+}
+// 予定を変更した印を付ける
+function touch(e) { e.updatedAt = Date.now(); return e; }
+// 予定を削除する（削除の記録も残す）
+function removeEvent(id) {
+  events = events.filter((e) => e.id !== id);
+  tombstones[id] = Date.now();
+}
 
 // ===== 日付ユーティリティ =====
 const pad = (n) => String(n).padStart(2, "0");
@@ -568,9 +600,9 @@ $("saveBtn").onclick = () => {
   if (!data.date) { alert("日付を入れてください"); return; }
   if (editingId) {
     const i = events.findIndex((e) => e.id === editingId);
-    if (i >= 0) events[i] = { ...events[i], ...data };
+    if (i >= 0) events[i] = touch({ ...events[i], ...data });
   } else {
-    events.push({ id: uid(), ...data });
+    events.push(touch({ id: uid(), ...data }));
   }
   persist();
   $("editDlg").close();
@@ -580,7 +612,7 @@ $("saveBtn").onclick = () => {
 $("deleteBtn").onclick = () => {
   if (!editingId) return;
   if (!confirm("この予定を削除しますか？")) return;
-  events = events.filter((e) => e.id !== editingId);
+  removeEvent(editingId);
   persist();
   $("editDlg").close();
   render();
@@ -986,7 +1018,7 @@ async function handleFiles(files) {
 $("importAddBtn").onclick = () => {
   const picked = candidates.filter((c) => c.on && c.date);
   if (!picked.length) return;
-  const added = picked.map((c) => ({
+  const added = picked.map((c) => touch({
     id: uid(), date: c.date, start: c.start, end: c.end,
     title: c.title, memo: c.memo, color: c.color,
     group: c.group || "", category: c.category || "other"
@@ -1010,12 +1042,207 @@ $("fileInput").onchange = (e) => {
   handleFiles(files);
 };
 
+// ===== 同期（GitHubの非公開リポジトリ） =====
+const KEY_GH = "cal-github";
+const KEY_LAST_SYNC = "cal-last-sync";
+const DATA_PATH = "data.json";
+const TOMB_KEEP_MS = 180 * 24 * 60 * 60 * 1000; // 削除の記録は180日で消す
+let gh = load(KEY_GH, { owner: "", repo: "", token: "" });
+let syncTimer = null;
+let syncing = false;
+let syncAgain = false;
+
+const ghReady = () => !!(gh.owner && gh.repo && gh.token);
+
+function fmtStamp(ms) {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function setSyncNote(text) { $("syncNote").textContent = text; }
+function showSyncStatus() {
+  if (!ghReady()) {
+    setSyncNote("未設定です。設定すると、スマホとPCで予定が同期され、アプリを入れ直しても自動で復元されます。");
+    return;
+  }
+  const t = load(KEY_LAST_SYNC, 0);
+  setSyncNote(t ? `最終同期：${fmtStamp(t)}` : "まだ同期していません");
+}
+
+// 日本語を含む文字列とbase64の変換（GitHubのAPIはbase64でファイルをやり取りする）
+function b64encode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
+}
+function b64decode(b64) {
+  const bin = atob(b64.replace(/\s/g, ""));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+
+function ghHeaders(json) {
+  const h = {
+    Authorization: `Bearer ${gh.token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+  if (json) h["Content-Type"] = "application/json";
+  return h;
+}
+const ghRepoUrl = () =>
+  `https://api.github.com/repos/${encodeURIComponent(gh.owner)}/${encodeURIComponent(gh.repo)}`;
+
+function ghErrorMessage(status) {
+  if (status === 401) return "同期エラー：トークンが正しくないか、期限切れです。";
+  if (status === 403) return "同期エラー：トークンの権限が足りません（Contents を Read and write にしてください）。";
+  if (status === 404) return "同期エラー：リポジトリが見つかりません（ユーザー名・リポジトリ名・トークンの対象リポジトリを確認してください）。";
+  return `同期エラー（${status}）`;
+}
+
+// 比較用に予定の項目の並びをそろえる
+function normEvent(e) {
+  return {
+    id: e.id, date: e.date, start: e.start || "", end: e.end || "",
+    title: e.title || "", memo: e.memo || "", color: e.color || DEFAULT_COLOR,
+    group: e.group || "", category: e.category || "other", updatedAt: e.updatedAt || 0
+  };
+}
+function signature(data) {
+  const ev = data.events.map(normEvent).sort((a, b) => a.id.localeCompare(b.id));
+  const tb = Object.keys(data.tombstones).sort().map((k) => [k, data.tombstones[k]]);
+  return JSON.stringify([ev, tb]);
+}
+
+// 端末内のデータとGitHubのデータを予定ごとに統合する（新しく変更したほうを残す）
+function mergeData(remote) {
+  const tombs = { ...remote.tombstones };
+  for (const [id, t] of Object.entries(tombstones)) {
+    if (!tombs[id] || tombs[id] < t) tombs[id] = t;
+  }
+  const map = new Map();
+  for (const e of remote.events) map.set(e.id, e);
+  for (const e of events) {
+    const r = map.get(e.id);
+    if (!r || (e.updatedAt || 0) > (r.updatedAt || 0)) map.set(e.id, e);
+  }
+  const merged = [];
+  for (const [id, e] of map) {
+    const t = tombs[id];
+    if (t && t >= (e.updatedAt || 0)) continue; // 最後の変更より後に削除された
+    if (t) delete tombs[id];                      // 削除より後に変更された → 残す
+    merged.push(normEvent(e));
+  }
+  const now = Date.now();
+  for (const [id, t] of Object.entries(tombs)) {
+    if (now - t > TOMB_KEEP_MS) delete tombs[id];
+  }
+  return { events: merged, tombstones: tombs };
+}
+
+async function syncNow() {
+  if (!ghReady()) return;
+  if (!navigator.onLine) {
+    setSyncNote("オフラインです。通信できるようになったら同期します。");
+    return;
+  }
+  if (syncing) { syncAgain = true; return; }
+  syncing = true;
+  clearTimeout(syncTimer);
+  setSyncNote("同期中…");
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      // 1. GitHubから読み込む
+      const res = await fetch(`${ghRepoUrl()}/contents/${DATA_PATH}`, {
+        cache: "no-store", headers: ghHeaders(false)
+      });
+      let remote = { events: [], tombstones: {} };
+      let sha = null;
+      if (res.status === 404) {
+        // ファイルがまだない（初回）か、リポジトリ自体がないかを確かめる
+        const repoRes = await fetch(ghRepoUrl(), { cache: "no-store", headers: ghHeaders(false) });
+        if (!repoRes.ok) throw new Error(ghErrorMessage(repoRes.status));
+      } else if (!res.ok) {
+        throw new Error(ghErrorMessage(res.status));
+      } else {
+        const j = await res.json();
+        sha = j.sha;
+        const d = JSON.parse(b64decode(j.content || ""));
+        remote = {
+          events: Array.isArray(d.events) ? d.events.filter((e) => e && e.id) : [],
+          tombstones: d.tombstones && typeof d.tombstones === "object" ? d.tombstones : {}
+        };
+      }
+
+      // 2. 統合して、端末側に反映する
+      const merged = mergeData(remote);
+      const mergedSig = signature(merged);
+      if (mergedSig !== signature({ events, tombstones })) {
+        events = merged.events;
+        tombstones = merged.tombstones;
+        saveLocal();
+        render();
+      }
+
+      // 3. GitHub側と違えば保存する
+      if (!sha || mergedSig !== signature(remote)) {
+        const content = JSON.stringify({ version: 2, savedAt: Date.now(), ...merged }, null, 1);
+        const body = { message: `sync ${new Date().toISOString()}`, content: b64encode(content) };
+        if (sha) body.sha = sha;
+        const put = await fetch(`${ghRepoUrl()}/contents/${DATA_PATH}`, {
+          method: "PUT", cache: "no-store", headers: ghHeaders(true), body: JSON.stringify(body)
+        });
+        // ほかの端末が先に保存していた → 読み込みからやり直す
+        if (put.status === 409 || put.status === 422) continue;
+        if (!put.ok) throw new Error(ghErrorMessage(put.status));
+      }
+
+      save(KEY_LAST_SYNC, Date.now());
+      showSyncStatus();
+      return;
+    }
+    throw new Error("同期エラー：ほかの端末と同時に保存しています。少し待ってからもう一度お試しください。");
+  } catch (err) {
+    setSyncNote(err && err.message ? err.message : "同期に失敗しました。");
+  } finally {
+    syncing = false;
+    if (syncAgain) { syncAgain = false; syncNow(); }
+  }
+}
+
+// 予定を変えたら少し待ってから同期する（続けて変更したときにまとめるため）
+function scheduleSync() {
+  if (!ghReady()) return;
+  clearTimeout(syncTimer);
+  setSyncNote("変更を同期します…");
+  syncTimer = setTimeout(syncNow, 1500);
+}
+
 // ===== 設定 =====
 function openSettings() {
   $("sKey").value = load(KEY_API, "");
   $("sModel").value = load(KEY_MODEL, "") || DEFAULT_MODEL;
+  $("gOwner").value = gh.owner;
+  $("gRepo").value = gh.repo || "calendar-data";
+  $("gToken").value = gh.token;
+  showSyncStatus();
   $("settingsDlg").showModal();
 }
+$("gSaveBtn").onclick = () => {
+  gh = {
+    owner: $("gOwner").value.trim(),
+    repo: $("gRepo").value.trim(),
+    token: $("gToken").value.trim()
+  };
+  save(KEY_GH, gh);
+  if (!ghReady()) { showSyncStatus(); return; }
+  syncNow();
+};
+$("gSyncBtn").onclick = () => {
+  if (!ghReady()) { alert("先にユーザー名・リポジトリ名・トークンを入れて「保存して同期」を押してください"); return; }
+  syncNow();
+};
 $("settingsBtn").onclick = openSettings;
 $("sSaveBtn").onclick = () => {
   save(KEY_API, $("sKey").value.trim());
@@ -1046,11 +1273,18 @@ $("jsonInput").onchange = async (e) => {
     const list = Array.isArray(data) ? data : data.events;
     if (!Array.isArray(list)) throw new Error();
     if (!confirm(`${list.length}件の予定を読み込みます。今の予定は置き換えられます。よろしいですか？`)) return;
-    events = list.map((x) => ({
+    const next = list.map((x) => touch({
       id: x.id || uid(), date: x.date, start: x.start || "", end: x.end || "",
       title: x.title || "", memo: x.memo || "", color: x.color || DEFAULT_COLOR,
       group: x.group || "", category: x.category || "other"
     }));
+    // 置き換えで消える予定は、ほかの端末からも消えるように削除の記録を残す
+    const keep = new Set(next.map((x) => x.id));
+    for (const e of events) {
+      if (!keep.has(e.id)) tombstones[e.id] = Date.now();
+    }
+    for (const x of next) delete tombstones[x.id];
+    events = next;
     persist();
     render();
     $("settingsDlg").close();
@@ -1089,8 +1323,15 @@ $("grid").addEventListener("touchend", (e) => {
 // 初期表示
 jumpTo(todayStr());
 
+// 同期：起動時・アプリに戻ったとき・通信が戻ったとき
+syncNow();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncNow();
+});
+window.addEventListener("online", () => syncNow());
+
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v1.7";
+const APP_VERSION = "v2.0";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
