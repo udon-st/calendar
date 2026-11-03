@@ -20,6 +20,7 @@
     --accent: #e5484d;
     --sun: #e5484d;
     --sat: #3a72d8;
+    --today: #efefef; /* 今日のマスの背景 */
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -31,6 +32,7 @@
       --accent: #ff6369;
       --sun: #ff6369;
       --sat: #6c9cf0;
+      --today: #222222;
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -81,6 +83,7 @@
   .cell.sat .num { color: var(--sat); }
   .cell.out .num { color: var(--line); }
   .cell.out .chip { opacity: .35; }
+  .cell.today { background: var(--today); }
   .cell.today .num { color: var(--accent); font-weight: 700; }
   .cell.sel .num { background: var(--fg); color: var(--bg); font-weight: 700; }
   /* 予定の帯：時刻（上・小さめ）とタイトル（下）の2段。長いタイトルは右端で切る。
@@ -112,7 +115,16 @@
     flex: none; font-size: 7.5px; font-weight: 700; letter-spacing: -.03em;
     font-variant-numeric: tabular-nums;
   }
-  .chip.cont { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+  /* 日をまたぐ予定：隣の日のバーとすき間なくつなげる（はじまりは左、終わりは右だけ丸く） */
+  .chip.span-bar {
+    width: auto; height: 13px; padding: 1px 3px; border-radius: 0; margin: 0 -1px;
+    position: relative; z-index: 1;
+  }
+  .chip.span-bar .chip-title { display: flex; align-items: baseline; gap: 2px; }
+  .chip.span-bar .chip-time-inline { flex: none; font-size: 7.5px; font-weight: 700; letter-spacing: -.03em; }
+  .chip.span-bar.s { margin-left: 0; border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+  .chip.span-bar.e { margin-right: 0; border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+  .chip-space { height: 13px; flex: none; }
   .ev-time.span { width: 76px; font-size: 12px; }
   .span-toggle {
     display: flex !important; align-items: center; gap: 8px; margin: 10px 0 0 !important;
@@ -252,6 +264,27 @@
   .time-pick { display: flex; align-items: center; gap: 4px; }
   .tp-btn { flex: 1; min-width: 0; text-align: center; font-variant-numeric: tabular-nums; font-size: 17px; }
   .tp-btn.empty { color: var(--sub); }
+  /* 日付を選ぶカレンダー */
+  .dp-btn { width: 100%; text-align: left; font-variant-numeric: tabular-nums; }
+  .dp-btn.empty { color: var(--sub); }
+  .dp-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .dp-month { font-size: 17px; font-weight: 700; }
+  .dp-week, .dp-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; }
+  .dp-week div { font-size: 12px; color: var(--sub); padding: 4px 0; }
+  .dp-week .sun { color: var(--sun); }
+  .dp-week .sat { color: var(--sat); }
+  .dp-day { height: 44px; display: grid; place-items: center; }
+  .dp-day span {
+    width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center;
+    font-size: 16px; font-variant-numeric: tabular-nums;
+  }
+  .dp-day.sun span { color: var(--sun); }
+  .dp-day.sat span { color: var(--sat); }
+  .dp-day.out span { opacity: .35; }
+  .dp-day.today span { background: var(--today); }
+  .dp-day.on span { background: var(--fg); color: var(--bg); font-weight: 700; }
+  .dp-day:disabled span { opacity: .2; }
+
   /* ホイール */
   .wheels { position: relative; display: flex; justify-content: center; gap: 24px; height: 200px; margin: 4px 0; }
   .wheel-col { position: relative; width: 96px; display: flex; align-items: center; }
@@ -388,7 +421,7 @@
           </select>
         </div>
         <div>
-          <input class="field" id="fUntil" type="date" hidden>
+          <input class="field" id="fUntil" type="date" data-title="繰り返しの終わり" hidden>
           <div class="count-box" id="fCountBox" hidden>
             <input class="field" id="fCount" type="number" min="1" max="500" inputmode="numeric" value="10">
             <span>回</span>
@@ -424,6 +457,26 @@
       <button class="btn" data-scope="all">すべての予定</button>
       <button class="btn ghost" data-scope="">キャンセル</button>
     </div>
+  </div>
+</dialog>
+
+<!-- 日付を選ぶカレンダー（日曜はじまり） -->
+<dialog id="dateDlg">
+  <div class="sheet">
+    <div class="sheet-head">
+      <button class="text-btn" id="dpCancel">キャンセル</button>
+      <h2 id="dpTitle">日付</h2>
+      <span style="width:72px"></span>
+    </div>
+    <div class="dp-nav">
+      <button class="icon-btn" id="dpPrev" aria-label="前の月">‹</button>
+      <div class="dp-month" id="dpMonth"></div>
+      <button class="icon-btn" id="dpNext" aria-label="次の月">›</button>
+    </div>
+    <div class="dp-week">
+      <div class="sun">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="sat">土</div>
+    </div>
+    <div class="dp-grid" id="dpGrid"></div>
   </div>
 </dialog>
 
@@ -570,7 +623,8 @@ const PRESET_COLORS = [
   "#d0698a", // ピンク
   "#8b6f5a", // 茶
   "#6f7c8a", // グレー
-  "#ffffff"  // 白（控えめな予定。カレンダーでは目立たない1行で表示）
+  "#ffffff", // 白（控えめな予定。カレンダーでは1行の白い帯で表示）
+  "#1f1f1f"  // 黒（カレンダーでは1行で表示。文字は白）
 ];
 const LEGACY_COLORS = {
   blue: "#3a72d8", red: "#e5484d", orange: "#e8822e",
@@ -594,7 +648,8 @@ function normColorPrefs(p) {
     ? [...new Set(p.palette.filter(isHex).map((c) => c.toLowerCase()))]
     : [...PRESET_COLORS];
   if (Array.isArray(p.palette) && !p.whiteAdded && !palette.includes("#ffffff")) palette.push("#ffffff");
-  return { categories, palette, updatedAt: p.updatedAt || 0, whiteAdded: true };
+  if (Array.isArray(p.palette) && !p.blackAdded && !palette.includes("#1f1f1f")) palette.push("#1f1f1f");
+  return { categories, palette, updatedAt: p.updatedAt || 0, whiteAdded: true, blackAdded: true };
 }
 let colorPrefs = normColorPrefs(load(KEY_COLORS, null));
 
@@ -609,6 +664,12 @@ function isLightColor(hex) {
   const h = colorHex(hex);
   const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16);
   return 0.299 * r + 0.587 * g + 0.114 * b > 235;
+}
+// 黒に近い色（白い予定と同じく1行で表示する。文字は白のまま）
+function isDarkColor(hex) {
+  const h = colorHex(hex);
+  const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b < 45;
 }
 // 背景色に合わせて文字色（白か黒）を選ぶ
 function textOn(hex) {
@@ -910,6 +971,117 @@ function enhanceTimeInput(inp) {
   refresh();
 }
 
+// ===== 日付を選ぶカレンダー（日曜はじまり。iPhone標準の日付選択は地域設定で月曜はじまりになるため） =====
+let dpState = null;
+function openDatePicker(title, value, min, onDone) {
+  const base = value || min || todayStr();
+  dpState = { y: Number(base.slice(0, 4)), m: Number(base.slice(5, 7)) - 1, value, min, onDone };
+  document.getElementById("dpTitle").textContent = title;
+  renderDatePicker();
+  document.getElementById("dateDlg").showModal();
+}
+function renderDatePicker() {
+  const { y, m, value, min } = dpState;
+  document.getElementById("dpMonth").textContent = `${y}年${m + 1}月`;
+  const grid = document.getElementById("dpGrid");
+  grid.innerHTML = "";
+  const first = new Date(y, m, 1);
+  const start = new Date(y, m, 1 - first.getDay()); // 日曜はじまり
+  const rows = Math.ceil((first.getDay() + new Date(y, m + 1, 0).getDate()) / 7);
+  const today = todayStr();
+  for (let i = 0; i < rows * 7; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const ds = ymd(d);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "dp-day";
+    if (d.getMonth() !== m) b.classList.add("out");
+    if (d.getDay() === 0 || holidayName(ds)) b.classList.add("sun");
+    else if (d.getDay() === 6) b.classList.add("sat");
+    if (ds === today) b.classList.add("today");
+    if (ds === value) b.classList.add("on");
+    if (min && ds < min) b.disabled = true;
+    const span = document.createElement("span");
+    span.textContent = d.getDate();
+    b.appendChild(span);
+    b.onclick = () => {
+      document.getElementById("dateDlg").close();
+      dpState.onDone(ds);
+    };
+    grid.appendChild(b);
+  }
+}
+document.getElementById("dpPrev").onclick = () => {
+  const d = new Date(dpState.y, dpState.m - 1, 1);
+  dpState.y = d.getFullYear(); dpState.m = d.getMonth();
+  renderDatePicker();
+};
+document.getElementById("dpNext").onclick = () => {
+  const d = new Date(dpState.y, dpState.m + 1, 1);
+  dpState.y = d.getFullYear(); dpState.m = d.getMonth();
+  renderDatePicker();
+};
+document.getElementById("dpCancel").onclick = () => document.getElementById("dateDlg").close();
+
+// <input type="date"> を「押すと日曜はじまりのカレンダーが出るボタン」に置き換える。
+// 元の入力欄は値の入れ物として残すので、ほかの処理はこれまで通り .value で読み書きできる。
+// getMin：選べる最初の日を返す関数（終了日なら開始日）
+function enhanceDateInput(inp, getMin) {
+  if (inp.dataset.enhanced) return;
+  inp.dataset.enhanced = "1";
+  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+  const initial = inp.value;
+  const startHidden = inp.hidden;
+  inp.type = "hidden";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "field dp-btn";
+  inp.after(btn);
+  btn.hidden = startHidden;
+
+  const refresh = () => {
+    const v = desc.get.call(inp) || "";
+    if (v) {
+      const d = parseYmd(v);
+      btn.textContent = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}（${WD[d.getDay()]}）`;
+    } else {
+      btn.textContent = "日付を選ぶ";
+    }
+    btn.classList.toggle("empty", !v);
+  };
+  Object.defineProperty(inp, "value", {
+    configurable: true,
+    get() { return desc.get.call(inp); },
+    set(v) { desc.set.call(inp, v || ""); refresh(); }
+  });
+  // 表示・非表示は、ボタンのほうで切り替える
+  Object.defineProperty(inp, "hidden", {
+    configurable: true,
+    get() { return btn.hidden; },
+    set(v) { btn.hidden = !!v; }
+  });
+
+  // 見出し：data-title があればそれ、なければ直前のラベル
+  const label = () => {
+    if (inp.dataset.title) return inp.dataset.title;
+    const l = inp.previousElementSibling;
+    return l && l.tagName === "LABEL" ? l.textContent : "日付";
+  };
+  btn.onclick = () => {
+    const min = getMin ? getMin() : "";
+    openDatePicker(label(), desc.get.call(inp) || "", min, (v) => {
+      inp.dataset.prev = desc.get.call(inp) || ""; // 変える前の日付（開始日を動かしたときに使う）
+      desc.set.call(inp, v);
+      refresh();
+      inp.dispatchEvent(new Event("input", { bubbles: true }));
+      inp.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  };
+
+  desc.set.call(inp, initial);
+  refresh();
+}
+
 // 日付の計算（日数の差・日を足す）
 const dayNum = (s) => { const [y, m, d] = s.split("-").map(Number); return Date.UTC(y, m - 1, d) / 86400000; };
 const daysBetween = (a, b) => dayNum(b) - dayNum(a);
@@ -1100,6 +1272,7 @@ const $ = (id) => document.getElementById(id);
 const CHIP_TIMED = 22;   // 時刻＋タイトルの2段
 const CHIP_ALLDAY = 13;  // タイトルだけ
 const CHIP_COMPACT = 11; // 1行表示（予定が多い日）
+const CHIP_SPAN = 13;    // 日をまたぐ予定のバー
 const CHIP_GAP = 2;
 const MORE_H = 11;
 
@@ -1117,9 +1290,45 @@ function render() {
   const cellH = Math.max(52, Math.min(104, Math.floor((window.innerHeight - 320) / rows)));
   const avail = cellH - 25; // 日付の数字と余白の分を引いた、予定を並べられる高さ
 
+  // 各日の予定を先に集めておく
+  const days = [];
   for (let i = 0; i < rows * 7; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const ds = ymd(d);
+    days.push({ d, ds, evs: eventsOn(ds) });
+  }
+
+  // 日をまたぐ予定は、週ごとに同じ段（レーン）にそろえて、1本のバーとしてつなげる
+  const lanesOf = []; // 日ごとに [段 → バー]
+  for (let w = 0; w < rows; w++) {
+    const items = new Map();
+    for (let c = 0; c < 7; c++) {
+      for (const e of days[w * 7 + c].evs) {
+        if (!spanDays(e)) continue;
+        const key = `${e.seriesId || e.id}@${e.date}`; // 1回分の予定ごと
+        if (!items.has(key)) items.set(key, { e, from: c, to: c });
+        else items.get(key).to = c;
+      }
+    }
+    // 早く始まるもの、長いものから順に、空いている段に入れる
+    const list = [...items.values()].sort((x, y) => x.from - y.from || (y.to - y.from) - (x.to - x.from));
+    const laneEnd = [];
+    for (const it of list) {
+      let l = laneEnd.findIndex((end) => end < it.from);
+      if (l < 0) { l = laneEnd.length; laneEnd.push(-1); }
+      laneEnd[l] = it.to;
+      it.lane = l;
+    }
+    for (let c = 0; c < 7; c++) {
+      const lanes = [];
+      for (const it of list) if (it.from <= c && c <= it.to) lanes[it.lane] = it;
+      lanesOf[w * 7 + c] = lanes;
+    }
+  }
+
+  for (let i = 0; i < rows * 7; i++) {
+    const { d, ds } = days[i];
+    const col = i % 7;
     const cell = document.createElement("button");
     cell.className = "cell";
     cell.style.height = `${cellH}px`;
@@ -1134,31 +1343,64 @@ function render() {
     num.textContent = d.getDate();
     cell.appendChild(num);
 
-    // 入るだけ並べて、入らない分は「+N」
-    const evs = eventsOn(ds).map((e) => {
-      // 時刻の段に出す文字：開始日は開始時刻、途中は「続き」、最終日は「〜終了時刻」
-      let timeText = e.start || "";
-      if (e.pos === "middle") timeText = e.start ? "続き" : "";
-      if (e.pos === "last") timeText = e.start ? (e.end ? `〜${e.end}` : "続き") : "";
-      return { e, timeText, light: isLightColor(e.color) };
-    });
-    // 2段表示で全部入らない日は、1行表示に切り替える（白い予定はいつも1行）
-    const fullH = evs.reduce((sum, x) =>
-      sum + (x.light ? CHIP_COMPACT : x.timeText ? CHIP_TIMED : CHIP_ALLDAY) + CHIP_GAP, 0);
-    const compact = fullH > avail;
-    let used = 0, shown = 0;
-    for (let j = 0; j < evs.length; j++) {
-      const { e, timeText, light } = evs[j];
-      const one = compact || light; // 1行で表示するか
-      const h = (one ? CHIP_COMPACT : (timeText ? CHIP_TIMED : CHIP_ALLDAY)) + CHIP_GAP;
-      const rest = evs.length - j - 1;
-      if (used + h + (rest > 0 ? MORE_H + CHIP_GAP : 0) > avail) break;
+    // 1. 日をまたぐ予定のバー（週の中で段をそろえる。空いている段はすき間を入れる）
+    let used = 0, hidden = 0;
+    const lanes = lanesOf[i];
+    for (let l = 0; l < lanes.length; l++) {
+      const it = lanes[l];
+      const h = CHIP_SPAN + CHIP_GAP;
+      if (used + h > avail) { if (it) hidden++; continue; }
       used += h;
+      if (!it) {
+        const sp = document.createElement("div");
+        sp.className = "chip-space";
+        cell.appendChild(sp);
+        continue;
+      }
+      const e = it.e;
+      const isStart = e.date === ds, isEnd = e.endDate === ds;
+      const bar = document.createElement("div");
+      bar.className = "chip span-bar" + (isStart ? " s" : "") + (isEnd ? " e" : "") +
+        (isLightColor(e.color) ? " light" : "");
+      bar.style.background = colorHex(e.color);
+      const ti = document.createElement("div");
+      ti.className = "chip-title";
+      // タイトルは、はじまりの日と、週をまたいで続くときの日曜だけに出す
+      if (isStart || col === 0) {
+        if (isStart && e.start) {
+          const t = document.createElement("span");
+          t.className = "chip-time-inline";
+          t.textContent = e.start;
+          ti.appendChild(t);
+        }
+        ti.appendChild(document.createTextNode(e.title || "（無題）"));
+      }
+      bar.appendChild(ti);
+      cell.appendChild(bar);
+    }
+
+    // 2. その日だけの予定。入るだけ並べて、入らない分は「+N」
+    const room = avail - used;
+    const evs = days[i].evs.filter((e) => !spanDays(e)).map((e) => ({
+      e, timeText: e.start || "", light: isLightColor(e.color),
+      single: isLightColor(e.color) || isDarkColor(e.color) // 白・黒の予定はいつも1行
+    }));
+    // 2段表示で全部入らない日は、1行表示に切り替える
+    const fullH = evs.reduce((sum, x) =>
+      sum + (x.single ? CHIP_COMPACT : x.timeText ? CHIP_TIMED : CHIP_ALLDAY) + CHIP_GAP, 0);
+    const compact = fullH > room;
+    let used2 = 0, shown = 0;
+    for (let j = 0; j < evs.length; j++) {
+      const { e, timeText, light, single } = evs[j];
+      const one = compact || single; // 1行で表示するか
+      const h = (one ? CHIP_COMPACT : (timeText ? CHIP_TIMED : CHIP_ALLDAY)) + CHIP_GAP;
+      const rest = evs.length - j - 1 + hidden;
+      if (used2 + h + (rest > 0 ? MORE_H + CHIP_GAP : 0) > room) break;
+      used2 += h;
       shown++;
       const chip = document.createElement("div");
       chip.className = "chip" + (one ? " compact" : "") + (light ? " light" : "");
       chip.style.background = colorHex(e.color);
-      if (e.pos === "middle" || e.pos === "last") chip.classList.add("cont");
       const ti = document.createElement("div");
       ti.className = "chip-title";
       if (one) {
@@ -1181,10 +1423,11 @@ function render() {
       chip.appendChild(ti);
       cell.appendChild(chip);
     }
-    if (evs.length > shown) {
+    const notShown = evs.length - shown + hidden;
+    if (notShown > 0) {
       const more = document.createElement("div");
       more.className = "more";
-      more.textContent = `+${evs.length - shown}`;
+      more.textContent = `+${notShown}`;
       cell.appendChild(more);
     }
 
@@ -1336,13 +1579,15 @@ function updateSpanForm() {
 }
 $("fSpan").addEventListener("change", updateSpanForm);
 // 開始日を動かしたら、終了日も同じだけ動かす
-let lastFormDate = "";
-$("fDate").addEventListener("focus", () => { lastFormDate = $("fDate").value; });
+// 編集画面の日付は、日曜はじまりのカレンダーで選ぶ
+enhanceDateInput($("fDate"));
+enhanceDateInput($("fEndDate"), () => $("fDate").value);
+enhanceDateInput($("fUntil"), () => $("fDate").value);
 $("fDate").addEventListener("change", () => {
-  if ($("fSpan").checked && lastFormDate && $("fDate").value && $("fEndDate").value) {
-    $("fEndDate").value = addDays($("fEndDate").value, daysBetween(lastFormDate, $("fDate").value));
+  const prev = $("fDate").dataset.prev;
+  if ($("fSpan").checked && prev && $("fDate").value && $("fEndDate").value) {
+    $("fEndDate").value = addDays($("fEndDate").value, daysBetween(prev, $("fDate").value));
   }
-  lastFormDate = $("fDate").value;
 });
 
 // ev は一覧で押した予定（繰り返しなら、その日の分）
@@ -2113,6 +2358,7 @@ function renderCandidates() {
         };
       });
       detail.querySelectorAll('input[type="time"]').forEach(enhanceTimeInput);
+      detail.querySelectorAll('input[type="date"]').forEach((x) => enhanceDateInput(x));
       buildColorPicker(detail.querySelector(".colors"), c.color, (hex) => {
         c.color = hex;
         bar.style.background = hex;
@@ -2755,7 +3001,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v3.9";
+const APP_VERSION = "v3.13";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
