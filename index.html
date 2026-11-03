@@ -163,6 +163,11 @@
   .cand-detail .field { padding: 8px 10px; }
   .cand-detail label { margin-top: 8px; }
   .submit-bar { position: sticky; bottom: 0; background: var(--bg); padding-top: 12px; }
+  .ics-toggle {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+    font-size: 14px; color: var(--fg);
+  }
+  .ics-toggle input { width: 20px; height: 20px; accent-color: var(--fg); }
 
   .loading { text-align: center; padding: 32px 0; color: var(--sub); font-size: 14px; }
   .spinner {
@@ -224,6 +229,9 @@
       <button class="btn danger" id="deleteBtn">削除</button>
       <button class="btn primary" id="saveBtn">保存</button>
     </div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn" id="icsOneBtn">iPhoneのカレンダーに追加</button>
+    </div>
     <p class="note">時刻を空欄にすると終日の予定になります。</p>
   </div>
 </dialog>
@@ -238,6 +246,10 @@
     <div class="thumbs" id="thumbs"></div>
     <div id="importBody"></div>
     <div class="submit-bar" id="importActions" hidden>
+      <label class="ics-toggle">
+        <input type="checkbox" id="icsToggle" checked>
+        iPhoneのカレンダーにも追加する
+      </label>
       <div class="actions" style="margin-top:0">
         <button class="btn" data-close>キャンセル</button>
         <button class="btn primary" id="importAddBtn">追加</button>
@@ -507,6 +519,123 @@ $("deleteBtn").onclick = () => {
   render();
 };
 
+// ===== iPhone標準カレンダーへの書き出し（.ics） =====
+const KEY_ICS = "cal-ics-on";
+
+function icsEscape(s) {
+  return String(s || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+// 1行75バイトごとに折り返す（.icsの決まり）
+function icsFold(line) {
+  const enc = new TextEncoder();
+  const out = [];
+  let cur = "";
+  let bytes = 0;
+  for (const ch of line) {
+    const b = enc.encode(ch).length;
+    const limit = out.length === 0 ? 75 : 74; // 2行目以降は先頭の空白1バイト分を引く
+    if (bytes + b > limit) {
+      out.push(cur);
+      cur = "";
+      bytes = 0;
+    }
+    cur += ch;
+    bytes += b;
+  }
+  out.push(cur);
+  return out.join("\r\n ");
+}
+
+const icsDate = (date) => date.replace(/-/g, "");
+const icsDateTime = (date, time) => `${icsDate(date)}T${time.replace(":", "")}00`;
+
+function addOneHour(date, time) {
+  const [h, m] = time.split(":").map(Number);
+  const d = parseYmd(date);
+  d.setHours(h + 1, m);
+  return { date: ymd(d), time: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
+}
+
+function buildIcs(list) {
+  const now = new Date();
+  const stamp =
+    `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T` +
+    `${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//udon-st//calendar-pwa//JA",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH"
+  ];
+  for (const e of list) {
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:${e.id || uid()}@calendar-pwa`);
+    lines.push(`DTSTAMP:${stamp}`);
+    if (e.start) {
+      // 時刻はタイムゾーンなし（iPhoneの現在地の時刻として扱われる）
+      lines.push(`DTSTART:${icsDateTime(e.date, e.start)}`);
+      if (e.end && e.end > e.start) {
+        lines.push(`DTEND:${icsDateTime(e.date, e.end)}`);
+      } else {
+        const t = addOneHour(e.date, e.start);
+        lines.push(`DTEND:${icsDateTime(t.date, t.time)}`);
+      }
+    } else {
+      const next = parseYmd(e.date);
+      next.setDate(next.getDate() + 1);
+      lines.push(`DTSTART;VALUE=DATE:${icsDate(e.date)}`);
+      lines.push(`DTEND;VALUE=DATE:${icsDate(ymd(next))}`);
+    }
+    lines.push(`SUMMARY:${icsEscape(e.title || "（無題）")}`);
+    if (e.memo) lines.push(`DESCRIPTION:${icsEscape(e.memo)}`);
+    lines.push("END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  return lines.map(icsFold).join("\r\n") + "\r\n";
+}
+
+// 共有シートで渡す。共有できない環境ではファイルとして保存する
+async function exportToIos(list) {
+  if (!list.length) return;
+  const name = list.length === 1
+    ? `${(list[0].title || "予定").slice(0, 20)}.ics`
+    : `予定${list.length}件.ics`;
+  const file = new File([buildIcs(list)], name, { type: "text/calendar" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+      return;
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+$("icsOneBtn").onclick = () => {
+  const ev = {
+    id: editingId || uid(),
+    title: $("fTitle").value.trim(),
+    date: $("fDate").value,
+    start: $("fStart").value,
+    end: $("fEnd").value,
+    memo: $("fMemo").value.trim()
+  };
+  if (!ev.date) { alert("日付を入れてください"); return; }
+  exportToIos([ev]);
+};
+
 // ===== スクショから読み取り =====
 function fileToImage(file) {
   return new Promise((resolve, reject) => {
@@ -724,6 +853,7 @@ async function handleFiles(files) {
   candidates = [];
   $("thumbs").innerHTML = "";
   $("importActions").hidden = true;
+  $("icsToggle").checked = load(KEY_ICS, true);
   $("importBody").innerHTML = '<div class="loading"><div class="spinner"></div>読み取り中…</div>';
   $("importDlg").showModal();
 
@@ -753,14 +883,17 @@ async function handleFiles(files) {
 $("importAddBtn").onclick = () => {
   const picked = candidates.filter((c) => c.on && c.date);
   if (!picked.length) return;
-  for (const c of picked) {
-    events.push({
-      id: uid(), date: c.date, start: c.start, end: c.end,
-      title: c.title, memo: c.memo, color: c.color
-    });
-  }
+  const added = picked.map((c) => ({
+    id: uid(), date: c.date, start: c.start, end: c.end,
+    title: c.title, memo: c.memo, color: c.color
+  }));
+  events.push(...added);
   persist();
+  const toIos = $("icsToggle").checked;
+  save(KEY_ICS, toIos);
   $("importDlg").close();
+  // 共有シートはボタンを押した流れの中で呼ぶ必要があるので、ここで直接呼ぶ
+  if (toIos) exportToIos(added);
   // いちばん早い日付の月を表示する
   const first = picked.map((c) => c.date).sort()[0];
   jumpTo(first);
