@@ -71,11 +71,11 @@
     /* 高さは画面の大きさと週の数に合わせて、描画のときに決める */
     height: 78px;
     display: flex; flex-direction: column; align-items: stretch;
-    padding: 3px 1px 4px; gap: 2px; border-top: 1px solid var(--line); overflow: hidden;
+    padding: 3px 1px 2px; gap: 2px; border-top: 1px solid var(--line); overflow: hidden;
   }
   .num {
-    width: 24px; height: 24px; border-radius: 12px; display: grid; place-items: center;
-    font-size: 13px; margin: 0 auto 1px;
+    width: 20px; height: 20px; border-radius: 10px; display: grid; place-items: center;
+    font-size: 12px; margin: 0 auto; flex: none;
   }
   .cell.sun .num { color: var(--sun); }
   .cell.sat .num { color: var(--sat); }
@@ -83,20 +83,29 @@
   .cell.out .chip { opacity: .35; }
   .cell.today .num { color: var(--accent); font-weight: 700; }
   .cell.sel .num { background: var(--fg); color: var(--bg); font-weight: 700; }
-  /* 予定の帯：時刻（上）とタイトル（下）の2段。長いタイトルは右端で切る */
+  /* 予定の帯：時刻（上・小さめ）とタイトル（下）の2段。長いタイトルは右端で切る。
+     文字は白で統一し、明るい色でも読めるようにごく薄い影を付ける */
   .chip {
     display: block; width: 100%; flex: none;
     padding: 1px 3px; border-radius: 4px; color: #fff;
     overflow: hidden; text-align: left;
+    text-shadow: 0 0 2px rgba(0,0,0,.35);
   }
   .chip-time {
-    font-size: 9px; line-height: 11px; height: 11px; font-weight: 700;
-    font-variant-numeric: tabular-nums; letter-spacing: -.01em;
-    white-space: nowrap; overflow: hidden;
+    font-size: 8px; line-height: 9px; height: 9px; font-weight: 700;
+    font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+    white-space: nowrap; overflow: hidden; opacity: .95;
   }
   .chip-title {
-    font-size: 10px; line-height: 12px; height: 12px;
+    font-size: 10px; line-height: 11px; height: 11px;
     white-space: nowrap; overflow: hidden; text-overflow: clip;
+  }
+  /* 予定が多い日は1行表示（小さい時刻＋タイトルを横に並べる） */
+  .chip.compact { padding: 0 3px; }
+  .chip.compact .chip-title { display: flex; align-items: baseline; gap: 2px; }
+  .chip.compact .chip-time-inline {
+    flex: none; font-size: 7.5px; font-weight: 700; letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
   }
   .chip.cont { border-top-left-radius: 0; border-bottom-left-radius: 0; }
   .ev-time.span { width: 76px; font-size: 12px; }
@@ -105,7 +114,7 @@
     font-size: 14px !important; color: var(--fg) !important;
   }
   .span-toggle input { width: 20px; height: 20px; accent-color: var(--fg); }
-  .more { font-size: 9px; color: var(--sub); text-align: center; line-height: 12px; flex: none; }
+  .more { font-size: 9px; color: var(--sub); text-align: center; line-height: 11px; height: 11px; flex: none; }
   .hol-name { font-size: 12px; font-weight: 400; color: var(--sun); margin-left: 8px; }
   .ev-repeat { font-size: 12px; color: var(--sub); margin-top: 2px; }
 
@@ -217,9 +226,45 @@
   }
   .ics-toggle input { width: 20px; height: 20px; accent-color: var(--fg); }
 
+  /* 色の設定 */
+  .cat-row { border-bottom: 1px solid var(--line); }
+  .cat-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 0; text-align: left; }
+  .cat-swatch { width: 26px; height: 26px; border-radius: 13px; flex: none; }
+  .cat-name { flex: 1; font-size: 15px; }
+  .cat-act { font-size: 13px; color: var(--sub); }
+  .cat-pick { padding: 4px 0 14px 2px; }
+  .palette-edit { display: flex; flex-wrap: wrap; gap: 12px; padding: 4px 0; }
+  .pal-item { width: 34px; height: 34px; border-radius: 17px; position: relative; flex: none; }
+  .pal-del {
+    position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 10px;
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+    font-size: 12px; line-height: 18px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  }
+
   /* 時刻の入力（5分刻みのプルダウン＋手入力） */
   .time-pick { display: flex; align-items: center; gap: 4px; }
-  .time-pick select.field { flex: 1; min-width: 0; padding: 10px 4px; text-align: center; text-align-last: center; }
+  .tp-btn { flex: 1; min-width: 0; text-align: center; font-variant-numeric: tabular-nums; font-size: 17px; }
+  .tp-btn.empty { color: var(--sub); }
+  /* ホイール */
+  .wheels { position: relative; display: flex; justify-content: center; gap: 24px; height: 200px; margin: 4px 0; }
+  .wheel-col { position: relative; width: 96px; display: flex; align-items: center; }
+  .wheel {
+    height: 200px; width: 70px; overflow-y: scroll; scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; position: relative; z-index: 1;
+    -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+            mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+  }
+  .wheel::-webkit-scrollbar { display: none; }
+  .wheel-item {
+    height: 40px; line-height: 40px; text-align: center; scroll-snap-align: center;
+    font-size: 22px; font-variant-numeric: tabular-nums;
+  }
+  .wheel-unit { position: relative; z-index: 1; font-size: 14px; color: var(--sub); margin-left: 4px; }
+  .wheel-band {
+    position: absolute; left: 0; right: 0; top: 80px; height: 40px;
+    background: var(--soft); border-radius: 10px; z-index: 0;
+  }
+  .wheel-ok { color: var(--fg); font-weight: 700; }
   .time-pick input.field { flex: 1; min-width: 0; }
   .time-pick input.field.bad { border-color: var(--accent); }
   .tp-colon { flex: none; font-weight: 700; color: var(--sub); }
@@ -375,6 +420,23 @@
   </div>
 </dialog>
 
+<!-- 時刻を選ぶホイール -->
+<dialog id="wheelDlg">
+  <div class="sheet">
+    <div class="sheet-head">
+      <button class="text-btn" id="wheelCancel">キャンセル</button>
+      <h2 id="wheelTitle">時刻</h2>
+      <button class="text-btn wheel-ok" id="wheelOk">決定</button>
+    </div>
+    <div class="wheels">
+      <div class="wheel-col"><div class="wheel" id="wheelH"></div><span class="wheel-unit">時</span></div>
+      <div class="wheel-col"><div class="wheel" id="wheelM"></div><span class="wheel-unit">分</span></div>
+      <div class="wheel-band"></div>
+    </div>
+    <button class="btn ghost" id="wheelClear" style="width:100%;margin-top:8px">時刻なし（終日）</button>
+  </div>
+</dialog>
+
 <!-- 検索・これからの予定 -->
 <dialog id="searchDlg">
   <div class="sheet">
@@ -439,6 +501,16 @@
     </div>
     <p class="note" id="rulesNote">ここに書いた内容は、スクショを読み取るたびにAIへ一緒に送られます（普段のルールより優先）。うまく読めなかったときに、正しい読み方を書き足していくと精度が上がります。同期を設定していれば、スマホとPCで共有されます。</p>
 
+    <label style="margin-top:24px">色の設定</label>
+    <div class="note" style="margin:0 0 6px">予定の種類ごとの色です。押すと変えられます（スクショから追加したときや、新しく予定を作ったときの色になります）。</div>
+    <div id="catColors"></div>
+    <label>色の選択肢</label>
+    <div class="note" style="margin:0 0 6px">予定の色を選ぶときに並ぶ色です。×で消せます。「＋」で選んだ色はここに追加されます。</div>
+    <div class="palette-edit" id="paletteEdit"></div>
+    <div class="actions">
+      <button class="btn" id="colorResetBtn">色を最初の設定に戻す</button>
+    </div>
+
     <label style="margin-top:24px">同期（GitHub）</label>
     <input class="field" id="gOwner" placeholder="GitHubのユーザー名（例：udon-st）" autocomplete="off" autocapitalize="off">
     <input class="field" id="gRepo" placeholder="データ用リポジトリ名（例：calendar-data）" autocomplete="off" autocapitalize="off" style="margin-top:8px">
@@ -494,7 +566,28 @@ const LEGACY_COLORS = {
   green: "#2f9e6a", purple: "#8e4ec6", gray: "#7d7d7d"
 };
 const DEFAULT_COLOR = CATEGORY_COLORS.other;
-const colorForCategory = (cat) => CATEGORY_COLORS[cat] || CATEGORY_COLORS.other;
+const CATEGORY_NAMES = {
+  circle: "サークル", work: "バイト", event: "ライブ・フォーマル", deadline: "締め切り", other: "その他"
+};
+
+// 自分で決めた色の設定 { categories: {種類: 色}, palette: [色の選択肢], updatedAt }
+const KEY_COLORS = "cal-colors";
+const isHex = (v) => typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
+function normColorPrefs(p) {
+  p = p && typeof p === "object" ? p : {};
+  const categories = { ...CATEGORY_COLORS };
+  for (const k of Object.keys(CATEGORY_COLORS)) {
+    if (p.categories && isHex(p.categories[k])) categories[k] = p.categories[k].toLowerCase();
+  }
+  const palette = Array.isArray(p.palette)
+    ? [...new Set(p.palette.filter(isHex).map((c) => c.toLowerCase()))]
+    : [...PRESET_COLORS];
+  return { categories, palette, updatedAt: p.updatedAt || 0 };
+}
+let colorPrefs = normColorPrefs(load(KEY_COLORS, null));
+
+const colorForCategory = (cat) => colorPrefs.categories[cat] || colorPrefs.categories.other;
+const defaultColor = () => colorForCategory("other");
 function colorHex(v) {
   if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
   return LEGACY_COLORS[v] || DEFAULT_COLOR;
@@ -508,28 +601,39 @@ function textOn(hex) {
   return (0.299 * r + 0.587 * g + 0.114 * b) > 170 ? "#1f1f1f" : "#ffffff";
 }
 
-// 色を選ぶ丸ボタンを作る。最後の「＋」で好きな色を選べる。onPick(hex) で選んだ色を返す
-function buildColorPicker(container, current, onPick) {
+// 色の選択肢に色を足して保存する（「＋」で選んだ色を次からも使えるように）
+function addPaletteColor(hex) {
+  hex = colorHex(hex);
+  if (colorPrefs.palette.includes(hex)) return;
+  colorPrefs.palette.push(hex);
+  colorPrefs.updatedAt = Date.now();
+  persist();
+}
+
+// 色を選ぶ丸ボタンを作る。最後の「＋」で好きな色を選べる（選んだ色は選択肢に保存される）。
+// onPick(hex)：選んでいる途中も呼ぶ（見た目の更新用）／onCommit(hex)：色が決まったときだけ呼ぶ
+function buildColorPicker(container, current, onPick, onCommit) {
   container.innerHTML = "";
   const cur = colorHex(current);
-  const select = (btn, hex) => {
+  const select = (btn, hex, commit) => {
     container.querySelectorAll(".color").forEach((x) => x.classList.remove("on"));
     btn.classList.add("on");
     onPick(hex);
+    if (commit && onCommit) onCommit(hex);
   };
 
-  for (const hex of PRESET_COLORS) {
+  for (const hex of colorPrefs.palette) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "color" + (hex === cur ? " on" : "");
     b.style.background = hex;
     b.setAttribute("aria-label", hex);
-    b.onclick = () => select(b, hex);
+    b.onclick = () => select(b, hex, true);
     container.appendChild(b);
   }
 
-  // 自由に選ぶ色
-  const isCustom = !PRESET_COLORS.includes(cur);
+  // 自由に選ぶ色（選択肢にない色の予定を開いたときは、ここに表示する）
+  const isCustom = !colorPrefs.palette.includes(cur);
   const custom = document.createElement("label");
   custom.className = "color custom" + (isCustom ? " on" : "");
   if (isCustom) custom.style.background = cur;
@@ -538,7 +642,13 @@ function buildColorPicker(container, current, onPick) {
   input.value = cur;
   input.oninput = () => {
     custom.style.background = input.value;
-    select(custom, input.value.toLowerCase());
+    select(custom, input.value.toLowerCase(), false);
+  };
+  // 決まった色は選択肢に保存して、次からも選べるようにする
+  input.onchange = () => {
+    const hex = input.value.toLowerCase();
+    select(custom, hex, true);
+    addPaletteColor(hex);
   };
   custom.appendChild(input);
   container.appendChild(custom);
@@ -577,6 +687,7 @@ function saveLocal() {
   save(KEY_EVENTS, events);
   save(KEY_TOMBS, tombstones);
   save(KEY_RULES, rules);
+  save(KEY_COLORS, colorPrefs);
 }
 // 予定を変更したときに呼ぶ：端末内に保存して、少し待ってから同期する
 function persist() {
@@ -624,7 +735,56 @@ function normTime(s) {
   return `${pad(h)}:${pad(mi)}`;
 }
 
-// <input type="time"> を「時・分のプルダウン（5分刻み）＋手入力ボタン」に置き換える。
+// ===== 時・分のホイール（下から出る選択画面） =====
+const WHEEL_ROW = 40; // 1行の高さ（CSSの .wheel-item と合わせる）
+let wheelState = null;
+function buildWheel(el, items) {
+  el.innerHTML = "";
+  const top = document.createElement("div");
+  top.style.height = `${WHEEL_ROW * 2}px`;
+  el.appendChild(top);
+  items.forEach((it, i) => {
+    const d = document.createElement("div");
+    d.className = "wheel-item";
+    d.textContent = it.label;
+    d.onclick = () => el.scrollTo({ top: i * WHEEL_ROW, behavior: "smooth" });
+    el.appendChild(d);
+  });
+  const bottom = document.createElement("div");
+  bottom.style.height = `${WHEEL_ROW * 2}px`;
+  el.appendChild(bottom);
+}
+const wheelIndex = (el, n) => Math.max(0, Math.min(n - 1, Math.round(el.scrollTop / WHEEL_ROW)));
+
+// 時刻を選ぶ画面を開く。決定したら onDone("HH:MM")、時刻なしなら onDone("")
+function openWheel(title, value, onDone) {
+  const [h, m] = value.split(":").map(Number);
+  const hours = Array.from({ length: 24 }, (_, i) => ({ v: i, label: String(i) }));
+  const mins = Array.from({ length: 12 }, (_, i) => i * 5);
+  if (!mins.includes(m)) { mins.push(m); mins.sort((x, y) => x - y); } // 5分刻みでない分もそのまま出す
+  const minItems = mins.map((v) => ({ v, label: pad(v) }));
+  document.getElementById("wheelTitle").textContent = title;
+  buildWheel(document.getElementById("wheelH"), hours);
+  buildWheel(document.getElementById("wheelM"), minItems);
+  wheelState = { hours, minItems, onDone };
+  document.getElementById("wheelDlg").showModal();
+  // 表示されてから、今の値の位置まで回しておく
+  requestAnimationFrame(() => {
+    document.getElementById("wheelH").scrollTop = h * WHEEL_ROW;
+    document.getElementById("wheelM").scrollTop = minItems.findIndex((x) => x.v === m) * WHEEL_ROW;
+  });
+}
+function wheelValue() {
+  const { hours, minItems } = wheelState;
+  const h = hours[wheelIndex(document.getElementById("wheelH"), hours.length)].v;
+  const m = minItems[wheelIndex(document.getElementById("wheelM"), minItems.length)].v;
+  return `${pad(h)}:${pad(m)}`;
+}
+document.getElementById("wheelOk").onclick = () => { const v = wheelValue(); document.getElementById("wheelDlg").close(); wheelState.onDone(v); };
+document.getElementById("wheelClear").onclick = () => { document.getElementById("wheelDlg").close(); wheelState.onDone(""); };
+document.getElementById("wheelCancel").onclick = () => document.getElementById("wheelDlg").close();
+
+// <input type="time"> を「押すと時・分のホイールが出るボタン（5分刻み）＋手入力」に置き換える。
 // 元の入力欄は値の入れ物として残すので、ほかの処理はこれまで通り .value で読み書きできる
 function enhanceTimeInput(inp) {
   if (inp.dataset.enhanced) return;
@@ -635,17 +795,9 @@ function enhanceTimeInput(inp) {
 
   const wrap = document.createElement("div");
   wrap.className = "time-pick";
-  const hSel = document.createElement("select");
-  const mSel = document.createElement("select");
-  hSel.className = mSel.className = "field";
-  hSel.innerHTML = '<option value="">--</option>' +
-    Array.from({ length: 24 }, (_, i) => `<option value="${pad(i)}">${i}</option>`).join("");
-  const minuteOptions = () => '<option value="">--</option>' +
-    Array.from({ length: 12 }, (_, i) => `<option value="${pad(i * 5)}">${pad(i * 5)}</option>`).join("");
-  mSel.innerHTML = minuteOptions();
-  const colon = document.createElement("span");
-  colon.className = "tp-colon";
-  colon.textContent = ":";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "field tp-btn";
   const txt = document.createElement("input");
   txt.className = "field";
   txt.type = "text";
@@ -656,26 +808,16 @@ function enhanceTimeInput(inp) {
   modeBtn.type = "button";
   modeBtn.className = "tp-mode";
   modeBtn.textContent = "手入力";
-  wrap.append(hSel, colon, mSel, txt, modeBtn);
+  wrap.append(btn, txt, modeBtn);
   inp.after(wrap);
 
   const setRaw = (v) => desc.set.call(inp, v);
   const fire = () => inp.dispatchEvent(new Event("input", { bubbles: true }));
 
-  // 値に合わせて見た目を更新（5分刻みでない分は、その分の選択肢を足して表示する）
   function refresh() {
     const v = desc.get.call(inp) || "";
-    const [h, m] = v ? v.split(":") : ["", ""];
-    hSel.value = h || "";
-    mSel.innerHTML = minuteOptions();
-    if (m && Number(m) % 5 !== 0) {
-      const o = document.createElement("option");
-      o.value = m;
-      o.textContent = m;
-      const after = [...mSel.options].find((x) => x.value && Number(x.value) > Number(m));
-      mSel.insertBefore(o, after || null);
-    }
-    mSel.value = m || "";
+    btn.textContent = v || "--:--";
+    btn.classList.toggle("empty", !v);
     if (document.activeElement !== txt) txt.value = v;
     txt.classList.remove("bad");
   }
@@ -686,14 +828,28 @@ function enhanceTimeInput(inp) {
     set(v) { setRaw(v || ""); refresh(); }
   });
 
-  const fromSelects = () => {
-    if (!hSel.value) { setRaw(""); }
-    else { setRaw(`${hSel.value}:${mSel.value || "00"}`); }
-    refresh();
-    fire();
+  // 空欄なら、今に近い時（終了は開始の1時間後）・00分の位置から選び始める
+  function suggestTime() {
+    const row = inp.closest(".row");
+    const isEnd = inp.id === "fEnd" || inp.dataset.k === "end";
+    const startInp = isEnd && row ? row.querySelector("#fStart, input[data-k='start']") : null;
+    const st = startInp && startInp.value;
+    if (st) return `${pad((Number(st.slice(0, 2)) + 1) % 24)}:00`;
+    const now = new Date();
+    const h = now.getMinutes() >= 30 ? now.getHours() + 1 : now.getHours();
+    return `${pad(h % 24)}:00`;
+  }
+  const label = () => {
+    const l = inp.closest("div") && inp.closest("div").querySelector("label");
+    return l ? `${l.textContent}の時刻` : "時刻";
   };
-  hSel.onchange = fromSelects;
-  mSel.onchange = () => { if (!hSel.value && mSel.value) hSel.value = "00"; fromSelects(); };
+  btn.onclick = () => {
+    openWheel(label(), desc.get.call(inp) || suggestTime(), (v) => {
+      setRaw(v);
+      refresh();
+      fire();
+    });
+  };
 
   // 手入力：入力のたびに読めれば反映、確定時（フォーカスを外したとき）に形をそろえる
   txt.oninput = () => {
@@ -710,7 +866,7 @@ function enhanceTimeInput(inp) {
   };
 
   const setMode = (manual) => {
-    hSel.hidden = mSel.hidden = colon.hidden = manual;
+    btn.hidden = manual;
     txt.hidden = !manual;
     modeBtn.textContent = manual ? "選ぶ" : "手入力";
     if (manual) { txt.value = desc.get.call(inp) || ""; txt.focus(); }
@@ -718,12 +874,7 @@ function enhanceTimeInput(inp) {
   };
   modeBtn.onclick = () => setMode(txt.hidden);
   // 画面を開き直したときに「選ぶ」に戻すため
-  inp.resetTimeMode = () => {
-    hSel.hidden = mSel.hidden = colon.hidden = false;
-    txt.hidden = true;
-    modeBtn.textContent = "手入力";
-    refresh();
-  };
+  inp.resetTimeMode = () => setMode(false);
 
   setRaw(initial);
   refresh();
@@ -916,10 +1067,11 @@ const MAX_CHIPS = 3;
 const $ = (id) => document.getElementById(id);
 
 // 予定の帯の高さ（CSSの .chip と合わせる）
-const CHIP_TIMED = 25;  // 時刻＋タイトルの2段
-const CHIP_ALLDAY = 14; // タイトルだけ
+const CHIP_TIMED = 22;   // 時刻＋タイトルの2段
+const CHIP_ALLDAY = 13;  // タイトルだけ
+const CHIP_COMPACT = 11; // 1行表示（予定が多い日）
 const CHIP_GAP = 2;
-const MORE_H = 12;
+const MORE_H = 11;
 
 function render() {
   $("monthLabel").textContent = `${viewYear}年${viewMonth + 1}月`;
@@ -933,7 +1085,7 @@ function render() {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const rows = Math.ceil((first.getDay() + daysInMonth) / 7);
   const cellH = Math.max(52, Math.min(104, Math.floor((window.innerHeight - 320) / rows)));
-  const avail = cellH - 32; // 日付の数字の分を引いた、予定を並べられる高さ
+  const avail = cellH - 25; // 日付の数字と余白の分を引いた、予定を並べられる高さ
 
   for (let i = 0; i < rows * 7; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
@@ -953,33 +1105,47 @@ function render() {
     cell.appendChild(num);
 
     // 入るだけ並べて、入らない分は「+N」
-    const evs = eventsOn(ds);
-    let used = 0, shown = 0;
-    for (let j = 0; j < evs.length; j++) {
-      const e = evs[j];
+    const evs = eventsOn(ds).map((e) => {
       // 時刻の段に出す文字：開始日は開始時刻、途中は「続き」、最終日は「〜終了時刻」
       let timeText = e.start || "";
       if (e.pos === "middle") timeText = e.start ? "続き" : "";
       if (e.pos === "last") timeText = e.start ? (e.end ? `〜${e.end}` : "続き") : "";
-      const h = (timeText ? CHIP_TIMED : CHIP_ALLDAY) + CHIP_GAP;
+      return { e, timeText };
+    });
+    // 2段表示で全部入らない日は、1行表示に切り替える
+    const fullH = evs.reduce((sum, x) => sum + (x.timeText ? CHIP_TIMED : CHIP_ALLDAY) + CHIP_GAP, 0);
+    const compact = fullH > avail;
+    let used = 0, shown = 0;
+    for (let j = 0; j < evs.length; j++) {
+      const { e, timeText } = evs[j];
+      const h = (compact ? CHIP_COMPACT : (timeText ? CHIP_TIMED : CHIP_ALLDAY)) + CHIP_GAP;
       const rest = evs.length - j - 1;
-      if (used + h + (rest > 0 ? MORE_H : 0) > avail) break;
+      if (used + h + (rest > 0 ? MORE_H + CHIP_GAP : 0) > avail) break;
       used += h;
       shown++;
       const chip = document.createElement("div");
-      chip.className = "chip";
+      chip.className = "chip" + (compact ? " compact" : "");
       chip.style.background = colorHex(e.color);
-      chip.style.color = textOn(e.color);
       if (e.pos === "middle" || e.pos === "last") chip.classList.add("cont");
-      if (timeText) {
-        const t = document.createElement("div");
-        t.className = "chip-time";
-        t.textContent = timeText;
-        chip.appendChild(t);
-      }
       const ti = document.createElement("div");
       ti.className = "chip-title";
-      ti.textContent = e.title || "（無題）";
+      if (compact) {
+        if (timeText) {
+          const t = document.createElement("span");
+          t.className = "chip-time-inline";
+          t.textContent = timeText;
+          ti.appendChild(t);
+        }
+        ti.appendChild(document.createTextNode(e.title || "（無題）"));
+      } else {
+        if (timeText) {
+          const t = document.createElement("div");
+          t.className = "chip-time";
+          t.textContent = timeText;
+          chip.appendChild(t);
+        }
+        ti.textContent = e.title || "（無題）";
+      }
       chip.appendChild(ti);
       cell.appendChild(chip);
     }
@@ -1152,7 +1318,7 @@ function openEdit(ev, opts = {}) {
   const series = ev && ev.seriesId ? events.find((e) => e.id === ev.seriesId) : null;
   editingId = ev && !opts.duplicate ? (ev.seriesId || ev.id) : null;
   editingInstanceDate = ev && !opts.duplicate ? ev.date : null;
-  editingColor = ev ? (ev.color || DEFAULT_COLOR) : DEFAULT_COLOR;
+  editingColor = ev ? (ev.color || defaultColor()) : defaultColor();
   $("editTitle").textContent = opts.duplicate ? "予定を複製" : ev ? "予定を編集" : "予定を追加";
   $("fTitle").value = (ev && ev.title) || "";
   $("fDate").value = (ev && ev.date) || selected;
@@ -2095,7 +2261,9 @@ function signature(data) {
   const ev = data.events.map(normEvent).sort((a, b) => a.id.localeCompare(b.id));
   const tb = Object.keys(data.tombstones).sort().map((k) => [k, data.tombstones[k]]);
   const r = data.rules || { text: "", updatedAt: 0 };
-  return JSON.stringify([ev, tb, r.text || "", r.shiftName || "", r.updatedAt || 0]);
+  const c = normColorPrefs(data.colors);
+  return JSON.stringify([ev, tb, r.text || "", r.shiftName || "", r.updatedAt || 0,
+    Object.keys(c.categories).sort().map((k) => c.categories[k]), c.palette, c.updatedAt]);
 }
 
 // 端末内のデータとGitHubのデータを予定ごとに統合する（新しく変更したほうを残す）
@@ -2126,7 +2294,9 @@ function mergeData(remote) {
   const mergedRules = (rules.updatedAt || 0) > (rr.updatedAt || 0)
     ? { text: rules.text || "", shiftName: rules.shiftName || "", updatedAt: rules.updatedAt || 0 }
     : { text: rr.text || "", shiftName: rr.shiftName || "", updatedAt: rr.updatedAt || 0 };
-  return { events: merged, tombstones: tombs, rules: mergedRules };
+  const rc = normColorPrefs(remote.colors);
+  const mergedColors = (colorPrefs.updatedAt || 0) > (rc.updatedAt || 0) ? normColorPrefs(colorPrefs) : rc;
+  return { events: merged, tombstones: tombs, rules: mergedRules, colors: mergedColors };
 }
 
 async function syncNow() {
@@ -2145,7 +2315,7 @@ async function syncNow() {
       const res = await fetch(`${ghRepoUrl()}/contents/${DATA_PATH}`, {
         cache: "no-store", headers: ghHeaders(false)
       });
-      let remote = { events: [], tombstones: {}, rules: { text: "", updatedAt: 0 } };
+      let remote = { events: [], tombstones: {}, rules: { text: "", updatedAt: 0 }, colors: null };
       let sha = null;
       if (res.status === 404) {
         // ファイルがまだない（初回）か、リポジトリ自体がないかを確かめる
@@ -2160,6 +2330,7 @@ async function syncNow() {
         remote = {
           events: Array.isArray(d.events) ? d.events.filter((e) => e && e.id) : [],
           tombstones: d.tombstones && typeof d.tombstones === "object" ? d.tombstones : {},
+          colors: d.colors || null,
           rules: d.rules && typeof d.rules.text === "string"
             ? { text: d.rules.text, shiftName: d.rules.shiftName || "", updatedAt: d.rules.updatedAt || 0 }
             : { text: "", updatedAt: 0 }
@@ -2169,12 +2340,14 @@ async function syncNow() {
       // 2. 統合して、端末側に反映する
       const merged = mergeData(remote);
       const mergedSig = signature(merged);
-      if (mergedSig !== signature({ events, tombstones, rules })) {
+      if (mergedSig !== signature({ events, tombstones, rules, colors: colorPrefs })) {
         events = merged.events;
         tombstones = merged.tombstones;
         const rulesChanged = merged.rules.text !== rules.text || merged.rules.shiftName !== rules.shiftName;
         rules = merged.rules;
+        colorPrefs = merged.colors;
         saveLocal();
+        if ($("settingsDlg").open && !openCat) renderColorSettings();
         render();
         // 設定画面を開いていて、入力中でなければルール欄も最新にする
         if (rulesChanged && document.activeElement !== $("sRules")) $("sRules").value = rules.text;
@@ -2224,10 +2397,96 @@ function openSettings() {
   $("gToken").value = gh.token;
   $("sRules").value = rules.text || "";
   $("sShiftName").value = rules.shiftName || "";
+  openCat = null;
+  renderColorSettings();
   showRulesStatus();
   showSyncStatus();
   $("settingsDlg").showModal();
 }
+
+// ===== 色の設定 =====
+let openCat = null; // 色を変更中の種類
+function renderColorSettings() {
+  // 種類ごとの色
+  const box = $("catColors");
+  box.innerHTML = "";
+  for (const cat of Object.keys(CATEGORY_NAMES)) {
+    const row = document.createElement("div");
+    row.className = "cat-row";
+    const btn = document.createElement("button");
+    btn.className = "cat-btn";
+    const sw = document.createElement("span");
+    sw.className = "cat-swatch";
+    sw.style.background = colorPrefs.categories[cat];
+    const name = document.createElement("span");
+    name.className = "cat-name";
+    name.textContent = CATEGORY_NAMES[cat];
+    const act = document.createElement("span");
+    act.className = "cat-act";
+    act.textContent = openCat === cat ? "閉じる" : "変更";
+    btn.append(sw, name, act);
+    btn.onclick = () => { openCat = openCat === cat ? null : cat; renderColorSettings(); };
+    row.appendChild(btn);
+    if (openCat === cat) {
+      const pick = document.createElement("div");
+      pick.className = "colors cat-pick";
+      buildColorPicker(pick, colorPrefs.categories[cat],
+        (hex) => { sw.style.background = hex; },
+        (hex) => setCategoryColor(cat, hex));
+      row.appendChild(pick);
+    }
+    box.appendChild(row);
+  }
+
+  // 色の選択肢（×で消せる）
+  const pe = $("paletteEdit");
+  pe.innerHTML = "";
+  for (const hex of colorPrefs.palette) {
+    const item = document.createElement("div");
+    item.className = "pal-item";
+    item.style.background = hex;
+    const x = document.createElement("button");
+    x.className = "pal-del";
+    x.textContent = "×";
+    x.setAttribute("aria-label", "この色を消す");
+    x.onclick = () => {
+      colorPrefs.palette = colorPrefs.palette.filter((c) => c !== hex);
+      colorPrefs.updatedAt = Date.now();
+      persist();
+      renderColorSettings();
+    };
+    item.appendChild(x);
+    pe.appendChild(item);
+  }
+  if (!colorPrefs.palette.length) {
+    pe.innerHTML = '<div class="note" style="margin:0">色の選択肢はありません（予定の色を選ぶときに「＋」で追加できます）</div>';
+  }
+}
+
+function setCategoryColor(cat, hex) {
+  const old = colorPrefs.categories[cat];
+  if (old === hex) { openCat = null; renderColorSettings(); return; }
+  colorPrefs.categories[cat] = hex;
+  colorPrefs.updatedAt = Date.now();
+  // 今ある同じ種類の予定のうち、前の色のままのものも変えるか聞く
+  const targets = events.filter((e) => (e.category || "other") === cat && colorHex(e.color) === old);
+  if (targets.length && confirm(`今ある「${CATEGORY_NAMES[cat]}」の予定${targets.length}件も、新しい色に変えますか？`)) {
+    targets.forEach((e) => { e.color = hex; touch(e); });
+  }
+  persist();
+  openCat = null;
+  renderColorSettings();
+  render();
+}
+
+$("colorResetBtn").onclick = () => {
+  if (!confirm("種類ごとの色と色の選択肢を、最初の設定に戻しますか？（今ある予定の色は変わりません）")) return;
+  colorPrefs = normColorPrefs(null);
+  colorPrefs.updatedAt = Date.now();
+  persist();
+  openCat = null;
+  renderColorSettings();
+};
 
 // 読み取りのルール
 function showRulesStatus(msg) {
@@ -2449,7 +2708,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v3.3";
+const APP_VERSION = "v3.6";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
