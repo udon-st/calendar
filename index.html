@@ -100,11 +100,8 @@
     font-size: 10px; line-height: 11px; height: 11px;
     white-space: nowrap; overflow: hidden; text-overflow: clip;
   }
-  /* 白い予定：塗りつぶさず、細い枠と灰色の文字で控えめに */
-  .chip.light {
-    background: transparent; color: var(--sub); text-shadow: none;
-    box-shadow: inset 0 0 0 1px var(--line);
-  }
+  /* 白い予定：1行分の白い帯（文字も白なので空白に見える）。時刻の順の位置に入る */
+  .chip.light { color: #fff; text-shadow: none; }
   .ev-bar.light { box-shadow: inset 0 0 0 1px var(--sub); }
   .pal-item { box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
   .cat-swatch { box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
@@ -242,6 +239,7 @@
   .cat-name { flex: 1; font-size: 15px; }
   .cat-act { font-size: 13px; color: var(--sub); }
   .cat-pick { padding: 4px 0 14px 2px; }
+  .color-ok { flex: 1 0 100%; padding: 8px; font-size: 14px; margin-top: 4px; }
   .palette-edit { display: flex; flex-wrap: wrap; gap: 12px; padding: 4px 0; }
   .pal-item { width: 34px; height: 34px; border-radius: 17px; position: relative; flex: none; }
   .pal-del {
@@ -517,6 +515,9 @@
     <div class="note" style="margin:0 0 6px">予定の色を選ぶときに並ぶ色です。×で消せます。「＋」で選んだ色はここに追加されます。</div>
     <div class="palette-edit" id="paletteEdit"></div>
     <div class="actions">
+      <button class="btn" id="paletteCleanBtn">追加した色をまとめて消す</button>
+    </div>
+    <div class="actions" style="margin-top:8px">
       <button class="btn" id="colorResetBtn">色を最初の設定に戻す</button>
     </div>
 
@@ -618,20 +619,23 @@ function textOn(hex) {
   return (0.299 * r + 0.587 * g + 0.114 * b) > 170 ? "#1f1f1f" : "#ffffff";
 }
 
-// 色の選択肢に色を足して保存する（「＋」で選んだ色を次からも使えるように）
-function addPaletteColor(hex) {
+// 予定を保存したときに、その色が選択肢になければ追加する（保存は呼び出し側の persist で行う）
+// ※スペクトルで選んでいる途中の色は保存しない
+function rememberColor(hex) {
   hex = colorHex(hex);
-  if (colorPrefs.palette.includes(hex)) return;
+  if (colorPrefs.palette.includes(hex)) return false;
   colorPrefs.palette.push(hex);
   colorPrefs.updatedAt = Date.now();
-  persist();
+  return true;
 }
 
-// 色を選ぶ丸ボタンを作る。最後の「＋」で好きな色を選べる（選んだ色は選択肢に保存される）。
-// onPick(hex)：選んでいる途中も呼ぶ（見た目の更新用）／onCommit(hex)：色が決まったときだけ呼ぶ
+// 色を選ぶ丸ボタンを作る。最後の「＋」で好きな色を選べる。
+// onPick(hex)：色を選ぶたびに呼ぶ（スペクトルで動かしている途中も呼ぶ）
+// onCommit(hex)：色が決まったときだけ呼ぶ。指定したときは、スペクトルで選んだ色は「この色にする」を押して決める
 function buildColorPicker(container, current, onPick, onCommit) {
   container.innerHTML = "";
   const cur = colorHex(current);
+  let okBtn = null;
   const select = (btn, hex, commit) => {
     container.querySelectorAll(".color").forEach((x) => x.classList.remove("on"));
     btn.classList.add("on");
@@ -645,7 +649,7 @@ function buildColorPicker(container, current, onPick, onCommit) {
     b.className = "color" + (hex === cur ? " on" : "");
     b.style.background = hex;
     b.setAttribute("aria-label", hex);
-    b.onclick = () => select(b, hex, true);
+    b.onclick = () => { if (okBtn) okBtn.hidden = true; select(b, hex, true); };
     container.appendChild(b);
   }
 
@@ -657,18 +661,27 @@ function buildColorPicker(container, current, onPick, onCommit) {
   const input = document.createElement("input");
   input.type = "color";
   input.value = cur;
-  input.oninput = () => {
+  // スペクトルで動かしている間は見た目だけ変える（ここでは保存しない）
+  const preview = () => {
     custom.style.background = input.value;
     select(custom, input.value.toLowerCase(), false);
+    if (okBtn) okBtn.hidden = false;
   };
-  // 決まった色は選択肢に保存して、次からも選べるようにする
-  input.onchange = () => {
-    const hex = input.value.toLowerCase();
-    select(custom, hex, true);
-    addPaletteColor(hex);
-  };
+  input.oninput = preview;
+  input.onchange = preview;
   custom.appendChild(input);
   container.appendChild(custom);
+
+  // 決めるボタンが必要な場面（種類ごとの色の設定）では「この色にする」を出す
+  if (onCommit) {
+    okBtn = document.createElement("button");
+    okBtn.type = "button";
+    okBtn.className = "btn color-ok";
+    okBtn.textContent = "この色にする";
+    okBtn.hidden = true;
+    okBtn.onclick = () => onCommit(input.value.toLowerCase());
+    container.appendChild(okBtn);
+  }
 }
 
 
@@ -1129,8 +1142,6 @@ function render() {
       if (e.pos === "last") timeText = e.start ? (e.end ? `〜${e.end}` : "続き") : "";
       return { e, timeText, light: isLightColor(e.color) };
     });
-    // 白い予定（控えめな予定）は最後に並べ、入りきらないときは先に「+N」へ回す
-    evs.sort((a, b) => a.light - b.light);
     // 2段表示で全部入らない日は、1行表示に切り替える（白い予定はいつも1行）
     const fullH = evs.reduce((sum, x) =>
       sum + (x.light ? CHIP_COMPACT : x.timeText ? CHIP_TIMED : CHIP_ALLDAY) + CHIP_GAP, 0);
@@ -1146,7 +1157,7 @@ function render() {
       shown++;
       const chip = document.createElement("div");
       chip.className = "chip" + (one ? " compact" : "") + (light ? " light" : "");
-      if (!light) chip.style.background = colorHex(e.color);
+      chip.style.background = colorHex(e.color);
       if (e.pos === "middle" || e.pos === "last") chip.classList.add("cont");
       const ti = document.createElement("div");
       ti.className = "chip-title";
@@ -1463,6 +1474,8 @@ $("saveBtn").onclick = async () => {
       }
     }
   }
+  // 自分で選んだ色なら、次からも選べるように選択肢に保存する
+  rememberColor(data.color);
   persist();
   $("editDlg").close();
   jumpTo(data.date);
@@ -2187,6 +2200,7 @@ $("importAddBtn").onclick = () => {
     group: c.group || "", category: c.category || "other"
   }));
   events.push(...added);
+  added.forEach((e) => rememberColor(e.color));
   persist();
   const toIos = $("icsToggle").checked;
   save(KEY_ICS, toIos);
@@ -2489,6 +2503,7 @@ function setCategoryColor(cat, hex) {
   if (old === hex) { openCat = null; renderColorSettings(); return; }
   colorPrefs.categories[cat] = hex;
   colorPrefs.updatedAt = Date.now();
+  rememberColor(hex);
   // 今ある同じ種類の予定のうち、前の色のままのものも変えるか聞く
   const targets = events.filter((e) => (e.category || "other") === cat && colorHex(e.color) === old);
   if (targets.length && confirm(`今ある「${CATEGORY_NAMES[cat]}」の予定${targets.length}件も、新しい色に変えますか？`)) {
@@ -2499,6 +2514,17 @@ function setCategoryColor(cat, hex) {
   renderColorSettings();
   render();
 }
+
+// 自分で追加した色（最初から入っている色以外）をまとめて消す
+$("paletteCleanBtn").onclick = () => {
+  const added = colorPrefs.palette.filter((c) => !PRESET_COLORS.includes(c));
+  if (!added.length) { alert("自分で追加した色はありません"); return; }
+  if (!confirm(`自分で追加した色${added.length}個を、色の選択肢から消しますか？（最初から入っている色と、今ある予定の色はそのままです）`)) return;
+  colorPrefs.palette = colorPrefs.palette.filter((c) => PRESET_COLORS.includes(c));
+  colorPrefs.updatedAt = Date.now();
+  persist();
+  renderColorSettings();
+};
 
 $("colorResetBtn").onclick = () => {
   if (!confirm("種類ごとの色と色の選択肢を、最初の設定に戻しますか？（今ある予定の色は変わりません）")) return;
@@ -2729,7 +2755,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v3.7";
+const APP_VERSION = "v3.9";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
