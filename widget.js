@@ -3,7 +3,7 @@
 // icon-color: deep-blue; icon-glyph: calendar-alt;
 
 // ============================================================
-// 自作カレンダーのウィジェット（iPhoneのアプリ「Scriptable」用）
+// 自作カレンダーのウィジェット（iPhoneのアプリ「Scriptable」用。ロック画面・ホーム画面）
 // GitHubの非公開リポジトリ（同期先）から予定を読み込んで表示する
 // ============================================================
 
@@ -15,6 +15,17 @@ const TOKEN_KEY = "calendar-sync-token";               // トークンの保存�
 const CACHE_NAME = "calendar-widget-cache.json";        // 通信できないとき用の控え
 const DAYS_AHEAD = 14;                                  // 何日先まで探すか
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
+
+function colorHex(v) {
+  if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
+  const legacy = { blue: "#3a72d8", red: "#e5484d", orange: "#e8822e", green: "#2f9e6a", purple: "#8e4ec6", gray: "#7d7d7d" };
+  return legacy[v] || "#3f72b5";
+}
+function isLight(hex) {
+  const h = colorHex(hex);
+  const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 235;
+}
 
 // ===== 予定の計算（アプリと同じ計算） =====
 const pad = (n) => String(n).padStart(2, "0");
@@ -118,18 +129,31 @@ function upcoming(events, now, maxLines) {
   }
   return days;
 }
+// 次の予定を近い順に並べる（ロック画面用。白い予定は出さない）
+function nextItems(events, now, max) {
+  const out = [];
+  const today = ymd(now);
+  for (let i = 0; i <= DAYS_AHEAD && out.length < max; i++) {
+    const ds = addDays(today, i);
+    let evs = eventsOn(events, ds).filter((e) => !isLight(e.color));
+    if (i === 0) evs = evs.filter((e) => !isOver(e, now));
+    for (const e of evs) {
+      if (out.length >= max) break;
+      out.push({ e, date: ds, diff: i });
+    }
+  }
+  return out;
+}
+function shortDay(ds, diff) {
+  if (diff === 0) return "";
+  if (diff === 1) return "明日 ";
+  const d = parseYmd(ds);
+  return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]}) `;
+}
 // ===== ここまで（予定の計算） =====
 
-function colorHex(v) {
-  if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
-  const legacy = { blue: "#3a72d8", red: "#e5484d", orange: "#e8822e", green: "#2f9e6a", purple: "#8e4ec6", gray: "#7d7d7d" };
-  return legacy[v] || "#3f72b5";
-}
-function isLight(hex) {
-  const h = colorHex(hex);
-  const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16);
-  return 0.299 * r + 0.587 * g + 0.114 * b > 235;
-}
+
+
 function dayLabel(ds, today) {
   const d = parseYmd(ds);
   const base = `${d.getMonth() + 1}/${d.getDate()}（${WD[d.getDay()]}）`;
@@ -268,6 +292,75 @@ function build(family, events, note) {
   return w;
 }
 
+// ===== ロック画面のウィジェット =====
+function buildAccessory(family, events, note) {
+  const now = new Date();
+  const w = new ListWidget();
+  w.url = APP_URL;
+  w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+  const items = events ? nextItems(events, now, 3) : [];
+  const label = (x) => `${shortDay(x.date, x.diff)}${timeText(x.e) === "終日" ? "" : timeText(x.e) + " "}${x.e.title || "（無題）"}`;
+
+  // 時計の上の1行
+  if (family === "accessoryInline") {
+    const t = w.addText(!events ? "予定を読み込めません" : items.length ? label(items[0]) : "予定なし");
+    t.lineLimit = 1;
+    return w;
+  }
+
+  // 丸いもの：次の予定の時間とタイトル
+  if (family === "accessoryCircular") {
+    w.addAccessoryWidgetBackground = true;
+    w.setPadding(4, 4, 4, 4);
+    w.addSpacer();
+    if (!items.length) {
+      const t = w.addText(String(now.getDate()));
+      t.font = Font.boldSystemFont(20);
+      t.centerAlignText();
+      const s2 = w.addText(events ? "予定なし" : "—");
+      s2.font = Font.systemFont(9);
+      s2.centerAlignText();
+    } else {
+      const x = items[0];
+      const top = x.diff === 0 ? timeText(x.e) : x.diff === 1 ? "明日" : `${parseYmd(x.date).getDate()}日`;
+      const t = w.addText(top);
+      t.font = Font.boldSystemFont(top.length > 4 ? 12 : 14);
+      t.minimumScaleFactor = 0.6;
+      t.lineLimit = 1;
+      t.centerAlignText();
+      const ti = w.addText(x.e.title || "（無題）");
+      ti.font = Font.systemFont(9);
+      ti.lineLimit = 2;
+      ti.minimumScaleFactor = 0.7;
+      ti.centerAlignText();
+    }
+    w.addSpacer();
+    return w;
+  }
+
+  // 長方形：次の予定を3件まで
+  w.setPadding(0, 2, 0, 2);
+  if (!events) {
+    const t = w.addText(note || "予定を読み込めません");
+    t.font = Font.systemFont(12);
+    t.lineLimit = 3;
+    return w;
+  }
+  if (!items.length) {
+    const t = w.addText(`${DAYS_AHEAD}日先まで予定なし`);
+    t.font = Font.systemFont(13);
+    return w;
+  }
+  items.forEach((x, i) => {
+    const t = w.addText(label(x));
+    t.font = i === 0 ? Font.semiboldSystemFont(14) : Font.systemFont(13);
+    t.lineLimit = 1;
+    t.minimumScaleFactor = 0.85;
+  });
+  w.addSpacer();
+  return w;
+}
+
 // ===== 実行 =====
 async function run() {
   let token = Keychain.contains(TOKEN_KEY) ? Keychain.get(TOKEN_KEY) : null;
@@ -277,15 +370,21 @@ async function run() {
   if (config.runsInApp) {
     const menu = new Alert();
     menu.title = "カレンダーのウィジェット";
-    menu.addAction("プレビュー（小）");
-    menu.addAction("プレビュー（中）");
-    menu.addAction("プレビュー（大）");
+    const kinds = [
+      ["ロック画面（長方形）", "accessoryRectangular"],
+      ["ロック画面（時計の上）", "accessoryInline"],
+      ["ロック画面（丸）", "accessoryCircular"],
+      ["ホーム画面（小）", "small"],
+      ["ホーム画面（中）", "medium"],
+      ["ホーム画面（大）", "large"]
+    ];
+    kinds.forEach(([name]) => menu.addAction(`プレビュー：${name}`));
     menu.addAction(token ? "トークンを入れ直す" : "トークンを入れる");
     menu.addCancelAction("閉じる");
     const i = await menu.presentSheet();
     if (i === -1) return;
-    if (i === 3) { token = await askToken(); if (!token) return; family = "medium"; }
-    else family = ["small", "medium", "large"][i];
+    if (i === kinds.length) { token = await askToken(); if (!token) return; family = "accessoryRectangular"; }
+    else family = kinds[i][1];
     if (!token) token = await askToken();
   }
 
@@ -308,9 +407,15 @@ async function run() {
     }
   }
 
-  const w = build(family, events, note);
+  const w = family.startsWith("accessory") ? buildAccessory(family, events, note) : build(family, events, note);
   if (config.runsInWidget) {
     Script.setWidget(w);
+  } else if (family === "accessoryRectangular") {
+    await w.presentAccessoryRectangular();
+  } else if (family === "accessoryInline") {
+    await w.presentAccessoryInline();
+  } else if (family === "accessoryCircular") {
+    await w.presentAccessoryCircular();
   } else if (family === "small") {
     await w.presentSmall();
   } else if (family === "large") {
