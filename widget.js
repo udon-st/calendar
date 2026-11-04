@@ -129,13 +129,13 @@ function upcoming(events, now, maxLines) {
   }
   return days;
 }
-// 次の予定を近い順に並べる（ロック画面用。白い予定は出さない）
-function nextItems(events, now, max) {
+// 次の予定を近い順に並べる（ロック画面用。withLight が false なら白い予定は出さない）
+function nextItems(events, now, max, withLight) {
   const out = [];
   const today = ymd(now);
   for (let i = 0; i <= DAYS_AHEAD && out.length < max; i++) {
     const ds = addDays(today, i);
-    let evs = eventsOn(events, ds).filter((e) => !isLight(e.color));
+    let evs = eventsOn(events, ds).filter((e) => withLight || !isLight(e.color));
     if (i === 0) evs = evs.filter((e) => !isOver(e, now));
     for (const e of evs) {
       if (out.length >= max) break;
@@ -338,25 +338,67 @@ function buildAccessory(family, events, note) {
     return w;
   }
 
-  // 長方形：次の予定を3件まで
-  w.setPadding(0, 2, 0, 2);
+  // 長方形：ホーム画面と同じ見た目（日付の見出し＋色の線・時刻・タイトル）
+  w.setPadding(0, 0, 0, 0);
+  const head = w.addStack();
+  head.centerAlignContent();
+  const dn = head.addText(String(now.getDate()));
+  dn.font = Font.boldSystemFont(14);
+  head.addSpacer(4);
+  const sub = head.addText(`${now.getMonth() + 1}月 ${WD[now.getDay()]}曜日`);
+  sub.font = Font.mediumSystemFont(10);
+  sub.textOpacity = 0.7;
+  head.addSpacer();
+  w.addSpacer(2);
+
   if (!events) {
     const t = w.addText(note || "予定を読み込めません");
-    t.font = Font.systemFont(12);
-    t.lineLimit = 3;
+    t.font = Font.systemFont(11);
+    t.lineLimit = 2;
+    w.addSpacer();
     return w;
   }
-  if (!items.length) {
-    const t = w.addText(`${DAYS_AHEAD}日先まで予定なし`);
-    t.font = Font.systemFont(13);
+  const list = nextItems(events, now, 3, true);
+  if (!list.length) {
+    const t = w.addText(`${DAYS_AHEAD}日先まで予定はありません`);
+    t.font = Font.systemFont(11);
+    t.textOpacity = 0.7;
+    w.addSpacer();
     return w;
   }
-  items.forEach((x, i) => {
-    const t = w.addText(label(x));
-    t.font = i === 0 ? Font.semiboldSystemFont(14) : Font.systemFont(13);
-    t.lineLimit = 1;
-    t.minimumScaleFactor = 0.85;
-  });
+  for (const x of list) {
+    const e = x.e;
+    const light = isLight(e.color);
+    const row = w.addStack();
+    row.centerAlignContent();
+    const bar = row.addStack();
+    bar.size = new Size(3, 12);
+    bar.cornerRadius = 1.5;
+    bar.backgroundColor = light ? new Color("#ffffff", 0.35) : new Color(colorHex(e.color));
+    row.addSpacer(4);
+    const day = shortDay(x.date, x.diff).trim();
+    if (day) {
+      const dl = row.addText(day);
+      dl.font = Font.mediumSystemFont(9);
+      dl.textOpacity = 0.7;
+      dl.lineLimit = 1;
+      row.addSpacer(3);
+    }
+    const tm = timeText(e);
+    if (tm !== "終日" || !day) {
+      const tt = row.addText(tm);
+      tt.font = Font.mediumMonospacedSystemFont(10);
+      tt.textOpacity = 0.7;
+      tt.lineLimit = 1;
+      row.addSpacer(4);
+    }
+    const ti = row.addText(e.title || "（無題）");
+    ti.font = Font.systemFont(12);
+    ti.lineLimit = 1;
+    if (light) ti.textOpacity = 0.6;
+    row.addSpacer();
+    w.addSpacer(1);
+  }
   w.addSpacer();
   return w;
 }
