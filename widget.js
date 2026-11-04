@@ -156,7 +156,7 @@ function shortDay(ds, diff) {
 
 function dayLabel(ds, today) {
   const d = parseYmd(ds);
-  const base = `${d.getMonth() + 1}/${d.getDate()}（${WD[d.getDay()]}）`;
+  const base = `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`;
   const diff = daysBetween(today, ds);
   return diff === 0 ? `今日 ${base}` : diff === 1 ? `明日 ${base}` : base;
 }
@@ -220,13 +220,9 @@ function build(family, events, note) {
   const head = w.addStack();
   head.centerAlignContent();
   const d = now;
-  const dayNo = head.addText(String(d.getDate()));
-  dayNo.font = Font.boldSystemFont(small ? 26 : 22);
+  const dayNo = head.addText(`${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`);
+  dayNo.font = Font.boldSystemFont(small ? 17 : 17);
   dayNo.textColor = d.getDay() === 0 ? RED : d.getDay() === 6 ? BLUE : FG;
-  head.addSpacer(6);
-  const sub = head.addText(`${d.getMonth() + 1}月 ${WD[d.getDay()]}曜日`);
-  sub.font = Font.mediumSystemFont(small ? 11 : 13);
-  sub.textColor = SUB;
   head.addSpacer();
   w.addSpacer(small ? 4 : 6);
 
@@ -239,15 +235,23 @@ function build(family, events, note) {
   }
 
   const maxLines = small ? 5 : family === "large" ? 15 : 6;
-  const days = upcoming(events, now, maxLines);
+  let days = upcoming(events, now, maxLines);
+  // 今日の予定がない（終わった）ときは、先に「今日の予定はなし」を出してから明日以降を出す
+  if (!days.length || days[0].date !== today) {
+    const t = w.addText("今日の予定はなし");
+    t.font = Font.systemFont(small ? 11 : 13);
+    t.textColor = SUB;
+    w.addSpacer(small ? 3 : 4);
+    days = upcoming(events, now, maxLines - 1);
+  }
   if (!days.length) {
     const t = w.addText(`${DAYS_AHEAD}日先まで予定はありません`);
-    t.font = Font.systemFont(12);
+    t.font = Font.systemFont(11);
     t.textColor = SUB;
   }
   const fs = small ? 11 : 13;
   for (const day of days) {
-    if (!(small && day.date === today && days[0] === day)) {
+    if (day.date !== today) { // 今日はいちばん上に日付が出ているので、見出しは付けない
       const h = w.addText(dayLabel(day.date, today));
       h.font = Font.semiboldSystemFont(small ? 10 : 11);
       h.textColor = SUB;
@@ -303,7 +307,9 @@ function buildAccessory(family, events, note) {
 
   // 時計の上の1行
   if (family === "accessoryInline") {
-    const t = w.addText(!events ? "予定を読み込めません" : items.length ? label(items[0]) : "予定なし");
+    const t = w.addText(!events ? "予定を読み込めません"
+      : !items.length ? "予定なし"
+      : items[0].diff === 0 ? label(items[0]) : `今日なし・${label(items[0])}`);
     t.lineLimit = 1;
     return w;
   }
@@ -338,36 +344,47 @@ function buildAccessory(family, events, note) {
     return w;
   }
 
-  // 長方形：ホーム画面と同じ見た目（日付の見出し＋色の線・時刻・タイトル）
+  // 長方形：4行まで。今日の予定は時刻から始め、明日以降は「明日」「11/7(土)」の見出しの下に並べる
   w.setPadding(0, 0, 0, 0);
-  const head = w.addStack();
-  head.centerAlignContent();
-  const dn = head.addText(String(now.getDate()));
-  dn.font = Font.boldSystemFont(14);
-  head.addSpacer(4);
-  const sub = head.addText(`${now.getMonth() + 1}月 ${WD[now.getDay()]}曜日`);
-  sub.font = Font.mediumSystemFont(10);
-  sub.textOpacity = 0.7;
-  head.addSpacer();
-  w.addSpacer(2);
-
+  const MAX = 4;
   if (!events) {
     const t = w.addText(note || "予定を読み込めません");
     t.font = Font.systemFont(11);
-    t.lineLimit = 2;
+    t.lineLimit = 3;
     w.addSpacer();
     return w;
   }
-  const list = nextItems(events, now, 3, true);
-  if (!list.length) {
-    const t = w.addText(`${DAYS_AHEAD}日先まで予定はありません`);
-    t.font = Font.systemFont(11);
-    t.textOpacity = 0.7;
-    w.addSpacer();
-    return w;
+  const all = nextItems(events, now, 8, true);
+  const lines = []; // { head } または { x }
+  if (!all.some((x) => x.diff === 0)) lines.push({ text: "今日の予定はなし" });
+  let cur = null;
+  for (const x of all) {
+    if (x.diff !== 0 && x.date !== cur) {
+      if (lines.length >= MAX - 1) break; // 見出しだけで終わらないようにする
+      lines.push({ head: x.diff === 1 ? "明日" : shortDay(x.date, x.diff).trim() });
+      cur = x.date;
+    }
+    if (lines.length >= MAX) break;
+    lines.push({ x });
   }
-  for (const x of list) {
-    const e = x.e;
+  if (!all.length) lines.push({ text: `${DAYS_AHEAD}日先まで予定はありません` });
+
+  for (const ln of lines) {
+    if (ln.text) {
+      const t = w.addText(ln.text);
+      t.font = Font.systemFont(11);
+      t.textOpacity = 0.7;
+      t.lineLimit = 1;
+      continue;
+    }
+    if (ln.head) {
+      const t = w.addText(ln.head);
+      t.font = Font.semiboldSystemFont(10);
+      t.textOpacity = 0.7;
+      t.lineLimit = 1;
+      continue;
+    }
+    const e = ln.x.e;
     const light = isLight(e.color);
     const row = w.addStack();
     row.centerAlignContent();
@@ -376,19 +393,10 @@ function buildAccessory(family, events, note) {
     bar.cornerRadius = 1.5;
     bar.backgroundColor = light ? new Color("#ffffff", 0.35) : new Color(colorHex(e.color));
     row.addSpacer(4);
-    const day = shortDay(x.date, x.diff).trim();
-    if (day) {
-      const dl = row.addText(day);
-      dl.font = Font.mediumSystemFont(9);
-      dl.textOpacity = 0.7;
-      dl.lineLimit = 1;
-      row.addSpacer(3);
-    }
     const tm = timeText(e);
-    if (tm !== "終日" || !day) {
+    if (tm !== "終日") { // 終日の予定はタイトルだけ
       const tt = row.addText(tm);
-      tt.font = Font.mediumMonospacedSystemFont(10);
-      tt.textOpacity = 0.7;
+      tt.font = Font.mediumMonospacedSystemFont(11);
       tt.lineLimit = 1;
       row.addSpacer(4);
     }
@@ -397,7 +405,6 @@ function buildAccessory(family, events, note) {
     ti.lineLimit = 1;
     if (light) ti.textOpacity = 0.6;
     row.addSpacer();
-    w.addSpacer(1);
   }
   w.addSpacer();
   return w;
