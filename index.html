@@ -573,7 +573,7 @@
       <button type="button" data-mode="reply">前の人に続ける</button>
       <button type="button" data-mode="new">自分が最初に出す</button>
     </div>
-    <div class="c-row2">
+    <div class="c-row2" id="cPartRow">
       <div class="c-col">
         <label>自分のパート</label>
         <div class="seg" id="cPart">
@@ -609,15 +609,15 @@
         <div><label>この日まで</label><input class="field" id="cTo" type="date"></div>
       </div>
       <div class="row">
-        <div><label>平日の時間</label><input class="field" id="cWeekday" placeholder="18-" autocomplete="off"></div>
-        <div><label>土日祝の時間</label><input class="field" id="cHoliday" placeholder="13-" autocomplete="off"></div>
+        <div><label>平日の時間</label><input class="field" id="cWeekday" placeholder="10-" autocomplete="off"></div>
+        <div><label>土日祝の時間</label><input class="field" id="cHoliday" placeholder="10- ／ 終日" autocomplete="off"></div>
       </div>
       <div class="actions" style="margin-top:8px">
         <button class="btn primary" id="cGenBtn">空いている日を出す</button>
       </div>
     </div>
 
-    <p class="note" id="cNote">終わりがない時間（「18-」）は3時間、始まりがない時間（「-12」）は終わりの3時間前からとみなします。バイトは終わりの1時間後までを予定ありとして数えます。</p>
+    <p class="note" id="cNote">終わりがない時間（「18-」）は3時間、始まりがない時間（「-12」）は終わりの3時間前から、日付だけの行（「16」）は終日空いているとみなします。バイトは終わりの1時間後まで、終日の予定はその日いっぱいを予定ありとして数えます（数えたくない予定は色を白にしてください）。</p>
     </div>
 
     <!-- 照らし合わせたあとは入力欄をたたんで、結果を広く見せる -->
@@ -972,10 +972,17 @@ function normRules(r) {
     markName: r.markName || "まる",
     parts: r.parts && typeof r.parts === "object" ? { ...r.parts } : {},
     coordPart: r.coordPart === "bass" ? "bass" : "chorus",
-    genTimes: {
-      weekday: (r.genTimes && r.genTimes.weekday) || "18-",
-      holiday: (r.genTimes && r.genTimes.holiday) || "13-"
-    },
+    // 自分が最初に出すときの時間（最初は平日・土日祝とも「10-」）。
+    // 以前の最初の値（18- と 13-）のままなら、10- に置き換える
+    genTimes: (() => {
+      const g = r.genTimes || {};
+      const old = !r.genTimesV && g.weekday === "18-" && g.holiday === "13-";
+      return {
+        weekday: (!old && g.weekday) || "10-",
+        holiday: (!old && g.holiday) || "10-"
+      };
+    })(),
+    genTimesV: 2,
     updatedAt: r.updatedAt || 0
   };
 }
@@ -3101,6 +3108,8 @@ const C_CONT_RE = new RegExp(String.raw`^(${C_SLOTS})(.*)$`);
 const C_ONLY_RE = new RegExp(String.raw`^\s*${C_SLOTS}\s*$`);
 const C_ONE_SLOT_RE = new RegExp(C_SLOT, "g");
 const C_MONTH_RE = /^(\d{1,2})\s*[\/／月]\s*$/;
+const C_DAY_ONLY_RE = /^(\d{1,2})(?:(\s+)(.*))?$/; // 「16」「16 あめ×」：時間がない＝終日空いている
+const C_ALLDAY_FROM = 9 * 60, C_ALLDAY_TO = 22 * 60; // 終日の候補で「空いている時間」を出すときの範囲
 
 function cMin(t) {
   const [h, m] = t.replace("：", ":").split(":");
@@ -3120,8 +3129,14 @@ function cSlot(raw) {
   if (e <= s) e = s + 30;
   return { raw: raw.trim(), s, e, state: "ok", partText: "", autoPart: "", hits: [], allday: [] };
 }
+// 終日の候補（日付だけの行）。文章では時間を書かない
+function cAllDaySlot() {
+  return { raw: "", allDay: true, s: C_ALLDAY_FROM, e: C_ALLDAY_TO, state: "ok", partText: "", autoPart: "", hits: [], allday: [] };
+}
+const cLabel = (sl) => sl.raw || "終日";
 function cSlotsFrom(spec) {
   const t = (spec || "").trim();
+  if (t === "終日") return [cAllDaySlot()];
   if (!C_ONLY_RE.test(t)) return null;
   return (t.match(C_ONE_SLOT_RE) || []).map(cSlot);
 }
@@ -3162,6 +3177,16 @@ function cParse(text) {
         slots: (m[3].match(C_ONE_SLOT_RE) || []).map(cSlot) });
       continue;
     }
+    // 日付だけの行（終日空いている）
+    m = month ? body.match(C_DAY_ONLY_RE) : null;
+    if (m && Number(m[1]) >= 1 && Number(m[1]) <= 31) {
+      day = Number(m[1]);
+      date = cDate(month, day);
+      items.push({ type: "slot", raw, indent, open, close, day, date, isMain: true,
+        head: m[1], slotsText: "", notes: m[2] ? m[2] + (m[3] || "") : "",
+        slots: [cAllDaySlot()] });
+      continue;
+    }
     m = day ? body.match(C_CONT_RE) : null;
     if (m) {
       items.push({ type: "slot", raw, indent, open, close, day, date, isMain: false,
@@ -3179,7 +3204,7 @@ let coord = null;
 // coord = { mode: "reply"|"new", items, days: Map(日付 → { date, slots }), view: {y, m}, sel }
 
 const cGroupNow = () => ""; // グループ欄はなくした（同じグループの練習を区別しない）
-const cPartNow = () => rules.coordPart || "chorus";
+const cPartNow = () => (cModeNow() === "new" ? "chorus" : rules.coordPart || "chorus");
 const cNameNow = () => $("cMark").value.trim() || rules.markName || "まる";
 const cModeNow = () => ($("cNewBox").hidden ? "reply" : "new");
 
@@ -3196,7 +3221,7 @@ function cBusy(date) {
       en = e.pos === "last" ? (e.end ? cMin(e.end) : 24 * 60) : 24 * 60;
       if (e.pos === "first" && !e.start) s = 0;
     } else if (!e.start) {
-      allday.push(e); continue;                              // 1日だけの終日の予定は「確認」として出す
+      s = 0; en = 24 * 60;                                   // 終日の予定は、その日いっぱい予定あり
     } else {
       s = cMin(e.start);
       en = e.end ? cMin(e.end) : s + 60;
@@ -3261,6 +3286,7 @@ function cShowMode(mode) {
   $("cMode").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
   $("cReplyBox").hidden = mode !== "reply";
   $("cNewBox").hidden = mode !== "new";
+  $("cPartRow").hidden = mode === "new"; // 自分が最初に出すときは、パートと名前は使わない
   const same = coord && coord.mode === mode;
   $("cResult").hidden = !same;
   $("cCopyBar").hidden = !same;
@@ -3271,7 +3297,7 @@ function cSummaryText() {
   const part = cPartNow() === "chorus" ? "コーラス" : "Bass/Perc.";
   if (coord.mode === "reply") return `前の人のメッセージ（${coord.days.size}日分）・${part}`;
   const { from, to } = coord.range;
-  return `${md(from)}〜${md(to)}・平日 ${rules.genTimes.weekday}／土日祝 ${rules.genTimes.holiday}・${part}`;
+  return `${md(from)}〜${md(to)}・平日 ${rules.genTimes.weekday}／土日祝 ${rules.genTimes.holiday}`;
 }
 $("cEditInput").onclick = () => {
   $("cSetup").hidden = false;
@@ -3334,8 +3360,8 @@ function cStartNew() {
   if (!from || !to) { alert("期間を入れてください"); return false; }
   if (to < from) { alert("「この日まで」が「この日から」より前になっています"); return false; }
   if (daysBetween(from, to) > 120) { alert("期間は120日以内にしてください"); return false; }
-  const wd = $("cWeekday").value.trim() || "18-", hd = $("cHoliday").value.trim() || "13-";
-  if (!cSlotsFrom(wd) || !cSlotsFrom(hd)) { alert("時間は「18-」「18-21」「12-13,16-」のように入れてください"); return false; }
+  const wd = $("cWeekday").value.trim() || "10-", hd = $("cHoliday").value.trim() || "10-";
+  if (!cSlotsFrom(wd) || !cSlotsFrom(hd)) { alert("時間は「18-」「18-21」「12-13,16-」「終日」のように入れてください"); return false; }
   if (wd !== rules.genTimes.weekday || hd !== rules.genTimes.holiday) {
     rules.genTimes = { weekday: wd, holiday: hd };
     rules.updatedAt = Date.now();
@@ -3404,7 +3430,7 @@ function cRenderGrid() {
       for (const sl of entry.slots) {
         const b = document.createElement("span");
         b.className = `cc-slot ${sl.state}`;
-        b.textContent = `${C_STATE_LABEL[sl.state]}${sl.state === "part" ? sl.partText : sl.raw}`;
+        b.textContent = `${C_STATE_LABEL[sl.state]}${sl.state === "part" ? sl.partText : cLabel(sl)}`;
         cell.appendChild(b);
       }
     }
@@ -3511,10 +3537,11 @@ function cRenderDay() {
     lab.textContent = "この日の時間";
     const inp = document.createElement("input");
     inp.className = "field";
-    inp.value = entry.slots.map((s) => s.raw).join(",");
+    inp.value = entry.slots.some((s) => s.allDay) ? "終日" : entry.slots.map((s) => s.raw).join(",");
+    inp.placeholder = "例 18- ／ 12-13,16- ／ 終日";
     inp.onchange = () => {
       const ns = cSlotsFrom(inp.value);
-      if (!ns) { inp.classList.add("bad"); alert("時間は「18-」「18-21」「12-13,16-」のように入れてください"); return; }
+      if (!ns) { inp.classList.add("bad"); alert("時間は「18-」「18-21」「12-13,16-」「終日」のように入れてください"); return; }
       entry.slots = ns;
       ns.forEach((sl) => cEval(ds, sl));
       cRenderAll();
@@ -3535,12 +3562,14 @@ function cRenderDay() {
     head.className = "c-sl-head";
     const raw = document.createElement("span");
     raw.className = "c-sl-raw";
-    raw.textContent = sl.raw;
+    raw.textContent = cLabel(sl);
     const seg = document.createElement("div");
     seg.className = "seg c-state";
-    const choices = part === "chorus"
-      ? [["ok", "○ 参加できる"], ["part", "△ 一部だけ"], ["ng", "× できない"]]
-      : [["ok", "○ 参加できる"], ["ng", "× できない"]];
+    const choices = coord.mode === "new"
+      ? [["ok", "○ 出す"], ["part", "△ 時間を変えて出す"], ["ng", "× 出さない"]]
+      : part === "chorus"
+        ? [["ok", "○ 参加できる"], ["part", "△ 一部だけ"], ["ng", "× できない"]]
+        : [["ok", "○ 参加できる"], ["ng", "× できない"]];
     for (const [k, label] of choices) {
       const b = document.createElement("button");
       b.type = "button";
@@ -3561,7 +3590,9 @@ function cRenderDay() {
       const row = document.createElement("div");
       row.className = "c-part-row";
       const lb = document.createElement("span");
-      lb.textContent = `参加できる時間（「(${cNameNow()} 〇〇)」と付けます）`;
+      lb.textContent = coord.mode === "new"
+        ? "出す時間（例 19-）"
+        : `参加できる時間（「(${cNameNow()} 〇〇)」と付けます）`;
       const pi = document.createElement("input");
       pi.className = "field";
       pi.value = sl.partText;
@@ -3600,7 +3631,6 @@ function cRenderOutput() {
 
 // 自分が最初に出すとき：参加できる日だけを並べる
 function cBuildNew() {
-  const name = cNameNow();
   const out = [];
   let curM = "";
   for (const ds of [...coord.days.keys()].sort()) {
@@ -3609,7 +3639,9 @@ function cBuildNew() {
     const d = parseYmd(ds);
     const mk = `${d.getFullYear()}-${d.getMonth()}`;
     if (mk !== curM) { out.push(`${d.getMonth() + 1}/`); curM = mk; }
-    out.push(`${d.getDate()} ${kept.map((s) => cSlotText(s, name)).join(",")}`);
+    // 一部だけ空いている時間は、その時間そのものを書く（例：「18-」→「19-」）。×などは付けない
+    const times = kept.map((s) => (s.state === "part" && s.partText ? s.partText : s.raw)).filter(Boolean).join(",");
+    out.push(times ? `${d.getDate()} ${times}` : `${d.getDate()}`);
   }
   return out.length ? out.join("\n") : "（参加できる日がありません）";
 }
@@ -3630,7 +3662,7 @@ function cBuildReply() {
       const ng = it.slots.filter((s) => s.state !== "ok");
       let extra = "";
       if (ng.length && !it.notes.includes(mark)) {
-        extra = ng.length === it.slots.length ? ` ${mark}` : ` ${mark}(${ng.map((s) => s.raw).join(",")})`;
+        extra = ng.length === it.slots.length ? ` ${mark}` : ` ${mark}(${ng.map(cLabel).join(",")})`;
       }
       out.push(lineOf(it, it.head, it.slotsText, extra));
     }
@@ -3918,7 +3950,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v1.3";
+const APP_VERSION = "v1.5";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
