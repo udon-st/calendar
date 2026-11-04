@@ -344,6 +344,7 @@
   .cc-slot.ng { background: #f6d6d4; color: #8a2a25; text-decoration: line-through; }
   .cc-evs { display: flex; flex-direction: column; gap: 1px; margin-top: auto; padding: 0 2px; }
   .cc-ev { height: 3px; border-radius: 2px; }
+  .cc-ev.light { box-shadow: inset 0 0 0 1px var(--sub); } /* 白い予定も見えるように */
   .c-day { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
   .c-day-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
   .c-evs { margin-bottom: 4px; }
@@ -488,7 +489,7 @@
       <button class="icon-btn" data-close aria-label="閉じる">✕</button>
     </div>
     <label>タイトル</label>
-    <input class="field" id="fTitle" placeholder="例：ゼミ">
+    <input class="field" id="fTitle">
     <label>日付</label>
     <input class="field" id="fDate" type="date">
     <div class="row">
@@ -535,7 +536,7 @@
     <label>色</label>
     <div class="colors" id="fColors"></div>
     <label>メモ</label>
-    <textarea class="field" id="fMemo" rows="2" placeholder="場所など"></textarea>
+    <textarea class="field" id="fMemo" rows="2"></textarea>
     <div class="actions">
       <button class="btn danger" id="deleteBtn">削除</button>
       <button class="btn primary" id="saveBtn">保存</button>
@@ -544,7 +545,6 @@
       <button class="btn" id="dupBtn">複製</button>
       <button class="btn" id="icsOneBtn">iPhoneのカレンダーに追加</button>
     </div>
-    <p class="note">開始の時を「--」にすると終日の予定になります。1分単位で入れたいときは「手入力」を押してください（「1907」のように数字だけでもOK）。</p>
   </div>
 </dialog>
 
@@ -577,8 +577,8 @@
       <div class="c-col">
         <label>自分のパート</label>
         <div class="seg" id="cPart">
-          <button type="button" data-part="chorus">コーラス<small>×の時間は消す</small></button>
-          <button type="button" data-part="bass">Bass/Perc.<small>×を付ける</small></button>
+          <button type="button" data-part="chorus">コーラス</button>
+          <button type="button" data-part="bass">Bass/Perc.</button>
         </div>
       </div>
       <div class="c-col c-name">
@@ -590,12 +590,7 @@
     <div id="cSetup">
     <div id="cReplyBox">
       <label>前の人のメッセージ</label>
-      <textarea class="field" id="cInput" rows="8" placeholder="LINEのメッセージを長押し →「コピー」して、ここに貼り付け
-例：
-10/
-4 18- ちゃか△
-12 -12 あめ×ちゃか△
-   12-13,16-"></textarea>
+      <textarea class="field" id="cInput" rows="8"></textarea>
       <div class="actions" style="margin-top:8px">
         <button class="btn" id="cShotBtn">スクショから読み取る</button>
         <button class="btn primary" id="cCheckBtn">予定と照らし合わせる</button>
@@ -610,14 +605,13 @@
       </div>
       <div class="row">
         <div><label>平日の時間</label><input class="field" id="cWeekday" placeholder="10-" autocomplete="off"></div>
-        <div><label>土日祝の時間</label><input class="field" id="cHoliday" placeholder="10- ／ 終日" autocomplete="off"></div>
+        <div><label>土日祝の時間</label><input class="field" id="cHoliday" placeholder="10-" autocomplete="off"></div>
       </div>
       <div class="actions" style="margin-top:8px">
         <button class="btn primary" id="cGenBtn">空いている日を出す</button>
       </div>
     </div>
 
-    <p class="note" id="cNote">終わりがない時間（「18-」）は3時間、始まりがない時間（「-12」）は終わりの3時間前から、日付だけの行（「16」）は終日空いているとみなします。バイトは終わりの1時間後まで、終日の予定はその日いっぱいを予定ありとして数えます（数えたくない予定は色を白にしてください）。</p>
     </div>
 
     <!-- 照らし合わせたあとは入力欄をたたんで、結果を広く見せる -->
@@ -629,7 +623,6 @@
     <div id="cResult" hidden>
       <div class="c-legend">
         <span class="cc-slot ok">○ 参加できる</span><span class="cc-slot part">△ 一部だけ</span><span class="cc-slot ng">× 参加できない</span>
-        <span class="c-legend-note">日を押すと直せます</span>
       </div>
       <div class="dp-nav">
         <button class="icon-btn" id="cPrev" aria-label="前の月">‹</button>
@@ -643,7 +636,6 @@
       <div class="c-day" id="cDay"></div>
       <label>送る文章</label>
       <textarea class="field" id="cOutput" rows="10"></textarea>
-      <p class="note" style="margin-top:4px">カレンダーで直すと、送る文章も作り直されます（文章を手で直すのは最後にしてください）。</p>
     </div>
     <div class="c-copybar" id="cCopyBar" hidden>
       <button class="btn primary" id="cCopyBtn">送る文章をコピー</button>
@@ -709,7 +701,6 @@
     </div>
     <div class="thumbs" id="thumbs"></div>
     <div id="importBody"></div>
-    <button class="teach-link" id="teachBtn">読み取りがおかしいときは「読み取りのルール」で教える ›</button>
     <div class="submit-bar" id="importActions" hidden>
       <label class="ics-toggle" id="icsRow">
         <input type="checkbox" id="icsToggle" checked>
@@ -734,29 +725,22 @@
     <input class="field" id="sKey" type="password" placeholder="sk-ant-..." autocomplete="off">
     <label>モデル</label>
     <input class="field" id="sModel" placeholder="claude-haiku-5-5">
-    <p class="note">APIキーはこの端末の中にだけ保存され、読み取り時にAnthropicのAPIへ直接送られます。</p>
     <div class="actions">
       <button class="btn primary" id="sSaveBtn">保存</button>
     </div>
 
     <label style="margin-top:24px">読み取りのルール（AIへの指示）</label>
-    <textarea class="field" id="sRules" rows="7" placeholder="例：
-・△は参加未定という意味。メモにそのまま残す
-・バイトのシフトは「11/5 17-22 ホール」のように書かれている
-・予定名に絵文字は入れない"></textarea>
+    <textarea class="field" id="sRules" rows="7"></textarea>
     <label>シフト表での自分の名前</label>
-    <input class="field" id="sShiftName" placeholder="例：齊藤 大輝" autocomplete="off">
-    <p class="note" style="margin-top:6px">バイトの確定シフト表（複数人の表）を読み込むと、この名前の行だけを読み取り、カレンダーのバイトの予定を確定版に合わせて書き換えます。</p>
+    <input class="field" id="sShiftName"  autocomplete="off">
     <div class="actions">
       <button class="btn" id="rulesSaveBtn">ルールと名前を保存</button>
     </div>
-    <p class="note" id="rulesNote">ここに書いた内容は、スクショを読み取るたびにAIへ一緒に送られます（普段のルールより優先）。うまく読めなかったときに、正しい読み方を書き足していくと精度が上がります。同期を設定していれば、スマホとPCで共有されます。</p>
+    <p class="note" id="rulesNote"></p>
 
     <label style="margin-top:24px">色の設定</label>
-    <div class="note" style="margin:0 0 6px">予定の種類ごとの色です。押すと変えられます（スクショから追加したときや、新しく予定を作ったときの色になります）。</div>
     <div id="catColors"></div>
     <label>色の選択肢</label>
-    <div class="note" style="margin:0 0 6px">予定の色を選ぶときに並ぶ色です。×で消せます。「＋」で選んだ色はここに追加されます。</div>
     <div class="palette-edit" id="paletteEdit"></div>
     <div class="actions">
       <button class="btn" id="paletteCleanBtn">追加した色をまとめて消す</button>
@@ -766,14 +750,14 @@
     </div>
 
     <label style="margin-top:24px">同期（GitHub）</label>
-    <input class="field" id="gOwner" placeholder="GitHubのユーザー名（例：udon-st）" autocomplete="off" autocapitalize="off">
-    <input class="field" id="gRepo" placeholder="データ用リポジトリ名（例：calendar-data）" autocomplete="off" autocapitalize="off" style="margin-top:8px">
-    <input class="field" id="gToken" type="password" placeholder="トークン（github_pat_...）" autocomplete="off" style="margin-top:8px">
+    <input class="field" id="gOwner" placeholder="ユーザー名" autocomplete="off" autocapitalize="off">
+    <input class="field" id="gRepo" placeholder="リポジトリ名" autocomplete="off" autocapitalize="off" style="margin-top:8px">
+    <input class="field" id="gToken" type="password" placeholder="トークン" autocomplete="off" style="margin-top:8px">
     <div class="actions">
       <button class="btn" id="gSaveBtn">保存して同期</button>
       <button class="btn" id="gSyncBtn">今すぐ同期</button>
     </div>
-    <p class="note" id="syncNote">未設定です。設定すると、スマホとPCで予定が同期され、アプリを入れ直しても自動で復元されます。</p>
+    <p class="note" id="syncNote">未設定</p>
 
     <label style="margin-top:24px">データ</label>
     <div class="actions" style="margin-top:4px">
@@ -781,7 +765,6 @@
       <button class="btn" id="importJsonBtn">読み込み</button>
     </div>
     <input type="file" id="jsonInput" accept="application/json,.json" hidden>
-    <p class="note">予定はこの端末の中に保存されています。機種変更やデータ消去に備えて、ときどき書き出しておくと安心です。</p>
     <label style="margin-top:24px">アプリ</label>
     <div class="actions" style="margin-top:4px">
       <button class="btn" id="updateBtn">最新版に更新</button>
@@ -2699,7 +2682,7 @@ function fmtStamp(ms) {
 function setSyncNote(text) { $("syncNote").textContent = text; }
 function showSyncStatus() {
   if (!ghReady()) {
-    setSyncNote("未設定です。設定すると、スマホとPCで予定が同期され、アプリを入れ直しても自動で復元されます。");
+    setSyncNote("未設定");
     return;
   }
   const t = load(KEY_LAST_SYNC, 0);
@@ -2952,7 +2935,7 @@ function renderColorSettings() {
     pe.appendChild(item);
   }
   if (!colorPrefs.palette.length) {
-    pe.innerHTML = '<div class="note" style="margin:0">色の選択肢はありません（予定の色を選ぶときに「＋」で追加できます）</div>';
+    pe.innerHTML = '<div class="note" style="margin:0">なし</div>';
   }
 }
 
@@ -2995,17 +2978,8 @@ $("colorResetBtn").onclick = () => {
 
 // 読み取りのルール
 function showRulesStatus(msg) {
-  const base = "ここに書いた内容は、スクショを読み取るたびにAIへ一緒に送られます（普段のルールより優先）。うまく読めなかったときに、正しい読み方を書き足していくと精度が上がります。同期を設定していれば、スマホとPCで共有されます。";
-  $("rulesNote").textContent = msg ? `${msg}　${base}` : base;
+  $("rulesNote").textContent = msg || "";
 }
-// 読み取り結果の画面から、ルール欄を直接開く
-$("teachBtn").onclick = () => {
-  openSettings();
-  setTimeout(() => {
-    $("sRules").scrollIntoView({ block: "center" });
-    $("sRules").focus();
-  }, 50);
-};
 $("rulesSaveBtn").onclick = () => {
   const text = $("sRules").value.trim();
   const shiftName = $("sShiftName").value.trim();
@@ -3213,7 +3187,7 @@ function cBusy(date) {
   const g = cGroupNow();
   const list = [], allday = [];
   for (const e of eventsOn(date)) {
-    if (isLightColor(e.color)) continue;                     // 白い（控えめな）予定は数えない
+    // 白い予定も予定として数える（カレンダーで目立たなくしているだけなので）
     if (g && (e.group === g || e.title === g)) continue;    // 同じグループの練習は数えない
     let s, en;
     if (spanDays(e)) {
@@ -3435,13 +3409,13 @@ function cRenderGrid() {
       }
     }
     // 自分の予定（色の線）
-    const evs = eventsOn(ds).filter((e) => !isLightColor(e.color));
+    const evs = eventsOn(ds);
     if (evs.length) {
       const wrap = document.createElement("span");
       wrap.className = "cc-evs";
       for (const e of evs.slice(0, 3)) {
         const ln = document.createElement("span");
-        ln.className = "cc-ev";
+        ln.className = "cc-ev" + (isLightColor(e.color) ? " light" : "");
         ln.style.background = colorHex(e.color);
         wrap.appendChild(ln);
       }
@@ -3515,7 +3489,7 @@ function cRenderDay() {
     t.className = "t";
     t.textContent = fmtTime(e);
     const name = document.createElement("span");
-    name.textContent = (e.title || "（無題）") + (isWork(e) && e.end ? "（＋1時間は参加できない）" : "");
+    name.textContent = (e.title || "（無題）") + (isWork(e) && e.end ? "（＋1時間）" : "");
     row.append(bar, t, name);
     evBox.appendChild(row);
   }
@@ -3538,7 +3512,6 @@ function cRenderDay() {
     const inp = document.createElement("input");
     inp.className = "field";
     inp.value = entry.slots.some((s) => s.allDay) ? "終日" : entry.slots.map((s) => s.raw).join(",");
-    inp.placeholder = "例 18- ／ 12-13,16- ／ 終日";
     inp.onchange = () => {
       const ns = cSlotsFrom(inp.value);
       if (!ns) { inp.classList.add("bad"); alert("時間は「18-」「18-21」「12-13,16-」「終日」のように入れてください"); return; }
@@ -3590,13 +3563,10 @@ function cRenderDay() {
       const row = document.createElement("div");
       row.className = "c-part-row";
       const lb = document.createElement("span");
-      lb.textContent = coord.mode === "new"
-        ? "出す時間（例 19-）"
-        : `参加できる時間（「(${cNameNow()} 〇〇)」と付けます）`;
+      lb.textContent = coord.mode === "new" ? "出す時間" : "参加できる時間";
       const pi = document.createElement("input");
       pi.className = "field";
       pi.value = sl.partText;
-      pi.placeholder = "例 19:30-";
       pi.oninput = () => {
         sl.partText = pi.value.trim();
         sl.manual = { state: "part", partText: sl.partText };
@@ -3765,7 +3735,6 @@ $("cFile").onchange = async (e) => {
     const t = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
     const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
     $("cInput").value = String(j.text || "").trim();
-    $("cNote").textContent = "読み取った文章が合っているか確認して、違うところは直してから「予定と照らし合わせる」を押してください。";
   } catch (err) {
     alert(err.message || "読み取りに失敗しました");
   } finally {
@@ -3950,7 +3919,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v1.5";
+const APP_VERSION = "v1.0";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
