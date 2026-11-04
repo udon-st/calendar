@@ -140,8 +140,24 @@
     flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     border-top: 1px solid var(--line); margin-top: 4px;
-    padding: 16px 4px calc(env(safe-area-inset-bottom) + 96px);
+    padding: 0 4px calc(env(safe-area-inset-bottom) + 96px);
   }
+  .day-head {
+    position: sticky; top: 0; z-index: 1; background: var(--bg);
+    padding-top: 6px; touch-action: none; cursor: grab;
+  }
+  .day-grip { display: flex; justify-content: center; padding: 2px 0 8px; }
+  .day-grip span { width: 40px; height: 5px; border-radius: 3px; background: var(--sub); opacity: .35; }
+  /* 引っ張って広げたとき */
+  .day.open {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0;
+    background: var(--bg); border-top: 0; border-radius: 16px 16px 0 0;
+    box-shadow: 0 -6px 24px rgba(0,0,0,.14);
+    padding-left: 16px; padding-right: 16px;
+    transition: top .25s ease;
+  }
+  .day.open .day-head { border-radius: 16px 16px 0 0; }
+  .day.dragging { transition: none; }
   .day-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
   .ev { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); width: 100%; text-align: left; align-items: stretch; }
   .ev-bar { width: 4px; border-radius: 2px; flex: none; }
@@ -154,7 +170,7 @@
 
   /* 下部ボタン */
   .bottom {
-    position: fixed; left: 0; right: 0; bottom: 0;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
     padding: 10px 16px calc(env(safe-area-inset-bottom) + 10px);
     background: linear-gradient(transparent, var(--bg) 30%);
     display: flex; justify-content: center; gap: 8px;
@@ -272,6 +288,35 @@
   }
   .seg button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 700; }
   #cMode { margin-bottom: 4px; }
+  .seg button small { display: block; font-size: 10px; font-weight: 400; opacity: .75; margin-top: 1px; }
+  .c-row2 { display: flex; gap: 8px; align-items: flex-end; }
+  .c-row2 .c-col { flex: 1; min-width: 0; }
+  .c-row2 .c-name { flex: 0 0 84px; }
+  .c-row2 .c-name .field { padding: 10px 8px; }
+  .c-summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin: 12px 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--soft);
+    font-size: 13px;
+  }
+  .c-summary .text-btn { flex: none; color: var(--fg); text-decoration: underline; }
+  .c-legend-note { font-size: 11px; color: var(--sub); margin-left: auto; align-self: center; }
+  .c-copybar {
+    position: sticky; bottom: calc(-18px - env(safe-area-inset-bottom)); z-index: 2;
+    margin: 12px -16px calc(-18px - env(safe-area-inset-bottom));
+    padding: 10px 16px calc(env(safe-area-inset-bottom) + 12px);
+    background: linear-gradient(transparent, var(--bg) 25%);
+  }
+  .c-copybar .btn { width: 100%; padding: 14px; box-shadow: 0 3px 12px rgba(0,0,0,.12); }
+  .c-day-nav { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
+  .c-day-nav .text-btn { flex: none; font-size: 13px; padding: 6px 4px; }
+  .c-day-nav .text-btn:disabled { opacity: .3; }
+  .c-day-nav .c-day-title { margin: 0; text-align: center; flex: 1; }
+  .c-sec { font-size: 12px; color: var(--sub); margin: 8px 0 2px; }
+  .seg.c-state { margin-top: 8px; }
+  .seg.c-state button { padding: 10px 2px; font-size: 14px; }
+  .seg.c-state button.on.ok { background: #3c7a1e; border-color: #3c7a1e; color: #fff; }
+  .seg.c-state button.on.part { background: #b88a00; border-color: #b88a00; color: #fff; }
+  .seg.c-state button.on.ng { background: var(--accent); border-color: var(--accent); color: #fff; }
   .seg.small { gap: 4px; flex: none; }
   .seg.small button { flex: none; padding: 6px 10px; font-size: 13px; }
   .seg.small button.on.ok { background: #3c7a1e; border-color: #3c7a1e; color: #fff; }
@@ -281,7 +326,7 @@
   .c-legend .cc-slot, .c-legend .cc-slot.ng { font-size: 11px; padding: 1px 6px; text-decoration: none; }
   .cc-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
   .cc-day {
-    min-height: 60px; border-top: 1px solid var(--line); padding: 2px 1px 3px;
+    min-height: 66px; border-top: 1px solid var(--line); padding: 2px 1px 3px;
     display: flex; flex-direction: column; gap: 1px; align-items: stretch; overflow: hidden; text-align: center;
   }
   .cc-day .n { font-size: 12px; line-height: 18px; }
@@ -291,7 +336,7 @@
   .cc-day.today { background: var(--today); }
   .cc-day.sel { box-shadow: inset 0 0 0 2px var(--fg); border-radius: 6px; }
   .cc-slot {
-    font-size: 9px; line-height: 13px; border-radius: 3px; white-space: nowrap; overflow: hidden;
+    font-size: 10px; line-height: 15px; border-radius: 3px; white-space: nowrap; overflow: hidden;
     font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
   }
   .cc-slot.ok { background: #dff0c8; color: #3c5a10; }
@@ -308,7 +353,7 @@
   .c-ev-row .t { color: var(--sub); font-variant-numeric: tabular-nums; flex: none; min-width: 84px; }
   .c-sl { border-top: 1px solid var(--line); padding: 8px 0 4px; margin-top: 6px; }
   .c-sl-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .c-sl-raw { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .c-sl-raw { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .c-part-row { margin-top: 6px; }
   .c-part-row span { display: block; font-size: 12px; color: var(--sub); margin-bottom: 4px; }
   .c-why { font-size: 12px; color: var(--sub); margin-top: 4px; word-break: break-word; }
@@ -419,8 +464,12 @@
 </div>
 <div class="grid" id="grid"></div>
 
-<section class="day">
-  <div class="day-title" id="dayTitle"></div>
+<section class="day" id="daySheet">
+  <!-- 取っ手：上に引っ張ると広く表示、下に引くと戻る（押しても切り替わる） -->
+  <div class="day-head" id="dayHead">
+    <div class="day-grip"><span></span></div>
+    <div class="day-title" id="dayTitle"></div>
+  </div>
   <div id="dayList"></div>
 </section>
 
@@ -524,17 +573,21 @@
       <button type="button" data-mode="reply">前の人に続ける</button>
       <button type="button" data-mode="new">自分が最初に出す</button>
     </div>
-    <label>グループ</label>
-    <input class="field" id="cGroup" list="cGroupList" placeholder="例：La vie" autocomplete="off">
-    <datalist id="cGroupList"></datalist>
-    <label>このグループでのパート</label>
-    <div class="seg" id="cPart">
-      <button type="button" data-part="chorus">コーラス（削除）</button>
-      <button type="button" data-part="bass">Bass/Perc.（×を付ける）</button>
+    <div class="c-row2">
+      <div class="c-col">
+        <label>自分のパート</label>
+        <div class="seg" id="cPart">
+          <button type="button" data-part="chorus">コーラス<small>×の時間は消す</small></button>
+          <button type="button" data-part="bass">Bass/Perc.<small>×を付ける</small></button>
+        </div>
+      </div>
+      <div class="c-col c-name">
+        <label>名前</label>
+        <input class="field" id="cMark" placeholder="まる" autocomplete="off">
+      </div>
     </div>
-    <label>自分の名前</label>
-    <input class="field" id="cMark" placeholder="まる" autocomplete="off">
 
+    <div id="cSetup">
     <div id="cReplyBox">
       <label>前の人のメッセージ</label>
       <textarea class="field" id="cInput" rows="8" placeholder="LINEのメッセージを長押し →「コピー」して、ここに貼り付け
@@ -565,10 +618,19 @@
     </div>
 
     <p class="note" id="cNote">終わりがない時間（「18-」）は3時間、始まりがない時間（「-12」）は終わりの3時間前からとみなします。バイトは終わりの1時間後までを予定ありとして数えます。</p>
+    </div>
+
+    <!-- 照らし合わせたあとは入力欄をたたんで、結果を広く見せる -->
+    <div class="c-summary" id="cSummary" hidden>
+      <span id="cSummaryText"></span>
+      <button type="button" class="text-btn" id="cEditInput">入力を変える</button>
+    </div>
 
     <div id="cResult" hidden>
-      <label>カレンダー（日を押すと、その日の予定を見ながら直せます）</label>
-      <div class="c-legend"><span class="cc-slot ok">○ 参加できる</span><span class="cc-slot part">△ 一部だけ</span><span class="cc-slot ng">× 参加できない</span></div>
+      <div class="c-legend">
+        <span class="cc-slot ok">○ 参加できる</span><span class="cc-slot part">△ 一部だけ</span><span class="cc-slot ng">× 参加できない</span>
+        <span class="c-legend-note">日を押すと直せます</span>
+      </div>
       <div class="dp-nav">
         <button class="icon-btn" id="cPrev" aria-label="前の月">‹</button>
         <div class="dp-month" id="cMonth"></div>
@@ -582,9 +644,9 @@
       <label>送る文章</label>
       <textarea class="field" id="cOutput" rows="10"></textarea>
       <p class="note" style="margin-top:4px">カレンダーで直すと、送る文章も作り直されます（文章を手で直すのは最後にしてください）。</p>
-      <div class="actions" style="margin-top:8px">
-        <button class="btn primary" id="cCopyBtn">コピーする</button>
-      </div>
+    </div>
+    <div class="c-copybar" id="cCopyBar" hidden>
+      <button class="btn primary" id="cCopyBtn">送る文章をコピー</button>
     </div>
   </div>
 </dialog>
@@ -909,6 +971,7 @@ function normRules(r) {
     shiftName: r.shiftName || "",
     markName: r.markName || "まる",
     parts: r.parts && typeof r.parts === "object" ? { ...r.parts } : {},
+    coordPart: r.coordPart === "bass" ? "bass" : "chorus",
     genTimes: {
       weekday: (r.genTimes && r.genTimes.weekday) || "18-",
       holiday: (r.genTimes && r.genTimes.holiday) || "13-"
@@ -2689,7 +2752,7 @@ function signature(data) {
   const r = normRules(data.rules);
   const c = normColorPrefs(data.colors);
   return JSON.stringify([ev, tb, r.text, r.shiftName, r.updatedAt, r.markName,
-    Object.keys(r.parts).sort().map((k) => [k, r.parts[k]]), r.genTimes.weekday, r.genTimes.holiday,
+    Object.keys(r.parts).sort().map((k) => [k, r.parts[k]]), r.genTimes.weekday, r.genTimes.holiday, r.coordPart,
     Object.keys(c.categories).sort().map((k) => c.categories[k]), c.palette, c.updatedAt]);
 }
 
@@ -3115,8 +3178,8 @@ function cParse(text) {
 let coord = null;
 // coord = { mode: "reply"|"new", items, days: Map(日付 → { date, slots }), view: {y, m}, sel }
 
-const cGroupNow = () => $("cGroup").value.trim();
-const cPartNow = () => rules.parts[cGroupNow()] || "chorus";
+const cGroupNow = () => ""; // グループ欄はなくした（同じグループの練習を区別しない）
+const cPartNow = () => rules.coordPart || "chorus";
 const cNameNow = () => $("cMark").value.trim() || rules.markName || "まる";
 const cModeNow = () => ($("cNewBox").hidden ? "reply" : "new");
 
@@ -3198,24 +3261,32 @@ function cShowMode(mode) {
   $("cMode").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
   $("cReplyBox").hidden = mode !== "reply";
   $("cNewBox").hidden = mode !== "new";
-  if (!coord || coord.mode !== mode) $("cResult").hidden = true;
+  const same = coord && coord.mode === mode;
+  $("cResult").hidden = !same;
+  $("cCopyBar").hidden = !same;
+  $("cSummary").hidden = !same;
+  $("cSetup").hidden = same;
 }
+function cSummaryText() {
+  const part = cPartNow() === "chorus" ? "コーラス" : "Bass/Perc.";
+  if (coord.mode === "reply") return `前の人のメッセージ（${coord.days.size}日分）・${part}`;
+  const { from, to } = coord.range;
+  return `${md(from)}〜${md(to)}・平日 ${rules.genTimes.weekday}／土日祝 ${rules.genTimes.holiday}・${part}`;
+}
+$("cEditInput").onclick = () => {
+  $("cSetup").hidden = false;
+  $("cSummary").hidden = true;
+  $("cSetup").scrollIntoView({ block: "start", behavior: "smooth" });
+};
 $("cMode").querySelectorAll("button").forEach((b) => { b.onclick = () => cShowMode(b.dataset.mode); });
 $("cPart").querySelectorAll("button").forEach((b) => {
   b.onclick = () => {
-    const g = cGroupNow();
-    if (!g) { alert("先にグループを入れてください"); return; }
-    rules.parts = { ...rules.parts, [g]: b.dataset.part };
+    rules.coordPart = b.dataset.part;
     rules.updatedAt = Date.now();
     persist();
     cShowPart();
     if (coord) { cEvalAll(); cRenderAll(); }
   };
-});
-$("cGroup").addEventListener("input", () => {
-  cShowPart();
-  try { localStorage.setItem(KEY_COORD_LAST, cGroupNow()); } catch {}
-  if (coord) { cEvalAll(); cRenderAll(); }
 });
 $("cMark").addEventListener("change", () => {
   const v = cNameNow();
@@ -3226,17 +3297,6 @@ enhanceDateInput($("cFrom"));
 enhanceDateInput($("cTo"), () => $("cFrom").value);
 
 function cOpen() {
-  // 予定から、サークルのグループ名の候補を作る
-  const names = new Set();
-  for (const e of events) {
-    if (e.group) names.add(e.group);
-    else if ((e.category || "") === "circle" && e.title) names.add(e.title);
-  }
-  Object.keys(rules.parts).forEach((n) => names.add(n));
-  $("cGroupList").innerHTML = [...names].sort().map((n) => `<option value="${n.replace(/"/g, "&quot;")}">`).join("");
-  let last = "";
-  try { last = localStorage.getItem(KEY_COORD_LAST) || ""; } catch {}
-  if (!$("cGroup").value) $("cGroup").value = last;
   $("cMark").value = rules.markName || "まる";
   if (!$("cFrom").value) $("cFrom").value = addDays(todayStr(), 1);
   if (!$("cTo").value) $("cTo").value = addDays($("cFrom").value, 27);
@@ -3299,13 +3359,21 @@ function cStartView() {
   const d = parseYmd(dates[0]);
   coord.view = { y: d.getFullYear(), m: d.getMonth() };
   $("cResult").hidden = false;
+  $("cCopyBar").hidden = false;
+  $("cSetup").hidden = true;
+  $("cSummary").hidden = false;
   cRenderAll();
-  setTimeout(() => $("cResult").scrollIntoView({ block: "start", behavior: "smooth" }), 50);
+  setTimeout(() => $("cSummary").scrollIntoView({ block: "start", behavior: "smooth" }), 50);
 }
 
 // ----- カレンダー（見ながら直す） -----
 const C_STATE_LABEL = { ok: "○", part: "△", ng: "×" };
-function cRenderAll() { cRenderGrid(); cRenderDay(); cRenderOutput(); }
+function cRenderAll() {
+  cRenderGrid();
+  cRenderDay();
+  cRenderOutput();
+  if (!$("cSummary").hidden) $("cSummaryText").textContent = cSummaryText();
+}
 
 function cRenderGrid() {
   const { y, m } = coord.view;
@@ -3336,7 +3404,7 @@ function cRenderGrid() {
       for (const sl of entry.slots) {
         const b = document.createElement("span");
         b.className = `cc-slot ${sl.state}`;
-        b.textContent = sl.state === "part" ? sl.partText : sl.raw;
+        b.textContent = `${C_STATE_LABEL[sl.state]}${sl.state === "part" ? sl.partText : sl.raw}`;
         cell.appendChild(b);
       }
     }
@@ -3370,6 +3438,25 @@ function cRenderDay() {
   const ds = coord.sel;
   const box = $("cDay");
   box.innerHTML = "";
+  // 前後の候補の日へ移動できる見出し
+  const dates = [...coord.days.keys()].sort();
+  const prev = [...dates].reverse().find((d) => d < ds);
+  const next = dates.find((d) => d > ds);
+  const go = (d) => {
+    coord.sel = d;
+    const p = parseYmd(d);
+    coord.view = { y: p.getFullYear(), m: p.getMonth() };
+    cRenderGrid();
+    cRenderDay();
+  };
+  const nav = document.createElement("div");
+  nav.className = "c-day-nav";
+  const pb = document.createElement("button");
+  pb.type = "button"; pb.className = "text-btn"; pb.textContent = "‹ 前の候補"; pb.disabled = !prev;
+  pb.onclick = () => go(prev);
+  const nb = document.createElement("button");
+  nb.type = "button"; nb.className = "text-btn"; nb.textContent = "次の候補 ›"; nb.disabled = !next;
+  nb.onclick = () => go(next);
   const title = document.createElement("div");
   title.className = "c-day-title";
   title.textContent = fmtDate(ds);
@@ -3380,13 +3467,18 @@ function cRenderDay() {
     h.textContent = hol;
     title.appendChild(h);
   }
-  box.appendChild(title);
+  nav.append(pb, title, nb);
+  box.appendChild(nav);
 
   // その日の予定
+  const sec1 = document.createElement("div");
+  sec1.className = "c-sec";
+  sec1.textContent = "この日の自分の予定";
+  box.appendChild(sec1);
   const evs = eventsOn(ds);
   const evBox = document.createElement("div");
   evBox.className = "c-evs";
-  if (!evs.length) evBox.innerHTML = '<div class="c-why">この日の予定はありません</div>';
+  if (!evs.length) evBox.innerHTML = '<div class="c-why" style="margin:0">予定はありません</div>';
   for (const e of evs) {
     const row = document.createElement("div");
     row.className = "c-ev-row";
@@ -3431,6 +3523,11 @@ function cRenderDay() {
   }
 
   const part = cPartNow();
+  const sec2 = document.createElement("div");
+  sec2.className = "c-sec";
+  sec2.style.marginTop = "12px";
+  sec2.textContent = "候補の時間";
+  box.appendChild(sec2);
   for (const sl of entry.slots) {
     const wrap = document.createElement("div");
     wrap.className = "c-sl";
@@ -3440,8 +3537,10 @@ function cRenderDay() {
     raw.className = "c-sl-raw";
     raw.textContent = sl.raw;
     const seg = document.createElement("div");
-    seg.className = "seg small";
-    const choices = part === "chorus" ? [["ok", "○"], ["part", "△ 一部"], ["ng", "×"]] : [["ok", "○"], ["ng", "×"]];
+    seg.className = "seg c-state";
+    const choices = part === "chorus"
+      ? [["ok", "○ 参加できる"], ["part", "△ 一部だけ"], ["ng", "× できない"]]
+      : [["ok", "○ 参加できる"], ["ng", "× できない"]];
     for (const [k, label] of choices) {
       const b = document.createElement("button");
       b.type = "button";
@@ -3455,8 +3554,8 @@ function cRenderDay() {
       };
       seg.appendChild(b);
     }
-    head.append(raw, seg);
-    wrap.appendChild(head);
+    head.append(raw);
+    wrap.append(head, seg);
 
     if (sl.state === "part") {
       const row = document.createElement("div");
@@ -3634,8 +3733,6 @@ $("cFile").onchange = async (e) => {
     const t = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
     const j = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
     $("cInput").value = String(j.text || "").trim();
-    const g = String(j.group || "").replace(/\s*[(（]\d+[)）]\s*$/, "").trim();
-    if (g && !cGroupNow()) { $("cGroup").value = g; cShowPart(); }
     $("cNote").textContent = "読み取った文章が合っているか確認して、違うところは直してから「予定と照らし合わせる」を押してください。";
   } catch (err) {
     alert(err.message || "読み取りに失敗しました");
@@ -3742,6 +3839,61 @@ $("nextBtn").onclick = () => goMonth(1);
 $("todayBtn").onclick = () => jumpTo(todayStr());
 $("addBtn").onclick = () => openEdit(null);
 
+// ===== 予定一覧を引っ張って広げる =====
+(() => {
+  const sheet = $("daySheet"), head = $("dayHead");
+  let open = false, drag = null;
+  // 広げたときは画面の半分まで（もともと半分より上にあるときは、そのまま）
+  const openTop = () => Math.min(closedTop(), Math.round(window.innerHeight / 2));
+  const closedTop = () => $("grid").getBoundingClientRect().bottom + 4;
+  const fix = (top) => { sheet.classList.add("open"); sheet.style.top = `${top}px`; };
+  function setOpen(v) {
+    open = v;
+    if (v) {
+      if (!sheet.classList.contains("open")) { fix(closedTop()); void sheet.offsetHeight; }
+      sheet.style.top = `${openTop()}px`;
+      return;
+    }
+    if (!sheet.classList.contains("open")) return;
+    sheet.style.top = `${closedTop()}px`;
+    let done = false;
+    const finish = () => {
+      if (done || open) return;
+      done = true;
+      sheet.classList.remove("open");
+      sheet.style.top = "";
+      sheet.scrollTop = 0;
+    };
+    sheet.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 320);
+  }
+  head.addEventListener("pointerdown", (e) => {
+    drag = { y0: e.clientY, top0: open ? sheet.getBoundingClientRect().top : closedTop(), moved: false };
+    try { head.setPointerCapture(e.pointerId); } catch {}
+  });
+  head.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dy = e.clientY - drag.y0;
+    if (!drag.moved && Math.abs(dy) < 6) return;
+    if (!drag.moved) { drag.moved = true; sheet.classList.add("dragging"); fix(drag.top0); }
+    sheet.style.top = `${Math.max(openTop(), Math.min(closedTop(), drag.top0 + dy))}px`;
+  });
+  const end = (e, cancel) => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    sheet.classList.remove("dragging");
+    if (!d.moved) { if (!cancel) setOpen(!open); return; }
+    const dy = e.clientY - d.y0;
+    const top = sheet.getBoundingClientRect().top;
+    // 動かした向きを優先し、少しだけなら近いほうに寄せる
+    setOpen(dy < -30 ? true : dy > 30 ? false : top < (openTop() + closedTop()) / 2);
+  };
+  head.addEventListener("pointerup", (e) => end(e, false));
+  head.addEventListener("pointercancel", (e) => end(e, true));
+  window.addEventListener("resize", () => { if (open) sheet.style.top = `${openTop()}px`; });
+})();
+
 // 左右スワイプで月移動
 let touchX = null, touchY = null;
 $("grid").addEventListener("touchstart", (e) => {
@@ -3766,7 +3918,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v1.2";
+const APP_VERSION = "v1.3";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
