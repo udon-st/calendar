@@ -108,9 +108,22 @@ function timeText(e) {
 // 今日のうち、もう終わった予定かどうか
 function isOver(e, now) {
   if (!e.start || e.pos === "first" || e.pos === "middle") return false;
+  // 終了時刻がない予定は、開始時刻を過ぎたら終わりとする
   const [h, m] = (e.end || e.start).split(":").map(Number);
-  const end = new Date(now); end.setHours(h, m + (e.end ? 0 : 60), 0, 0);
-  return end < now;
+  const end = new Date(now); end.setHours(h, m, 0, 0);
+  return end <= now;
+}
+// 次に表示が変わる時刻（今日の予定が消える時刻）。15分より早ければその時刻に更新を頼む
+function refreshTime(events, now) {
+  let t = new Date(now.getTime() + 15 * 60 * 1000);
+  if (!events) return t;
+  for (const e of eventsOn(events, ymd(now))) {
+    if (!e.start || e.pos === "first" || e.pos === "middle") continue;
+    const [h, m] = (e.end || e.start).split(":").map(Number);
+    const d = new Date(now); d.setHours(h, m, 0, 0);
+    if (d > now && d < t) t = d;
+  }
+  return t;
 }
 // 今日から順に、表示する予定を集める（日ごとにまとめる）
 function upcoming(events, now, maxLines) {
@@ -212,7 +225,7 @@ function build(family, events, note) {
   const w = new ListWidget();
   w.backgroundColor = BG;
   w.url = APP_URL;
-  w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+  w.refreshAfterDate = refreshTime(events, now);
   const small = family === "small";
   w.setPadding(small ? 12 : 14, small ? 12 : 16, small ? 10 : 12, small ? 12 : 16);
 
@@ -301,7 +314,7 @@ function buildAccessory(family, events, note) {
   const now = new Date();
   const w = new ListWidget();
   w.url = APP_URL;
-  w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+  w.refreshAfterDate = refreshTime(events, now);
   const items = events ? nextItems(events, now, 3) : [];
   const label = (x) => `${shortDay(x.date, x.diff)}${timeText(x.e) === "終日" ? "" : timeText(x.e) + " "}${x.e.title || "（無題）"}`;
 
