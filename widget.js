@@ -105,22 +105,24 @@ function timeText(e) {
   if (e.pos === "last") return e.end ? `〜${e.end}` : "続き";
   return e.start || "終日";
 }
-// 今日のうち、もう終わった予定かどうか
+// 今日のうち、もう始まった予定かどうか（予定中・終わった予定は出さない）
 function isOver(e, now) {
-  if (!e.start || e.pos === "first" || e.pos === "middle") return false;
-  // 終了時刻がない予定は、開始時刻を過ぎたら終わりとする
-  const [h, m] = (e.end || e.start).split(":").map(Number);
-  const end = new Date(now); end.setHours(h, m, 0, 0);
-  return end <= now;
+  if (!e.start) return false; // 終日の予定は1日中出す
+  if (e.pos === "middle" || e.pos === "last") return true; // 前の日から続いている予定はもう始まっている
+  return startOf(e, now) <= now;
 }
-// 次に表示が変わる時刻（今日の予定が消える時刻）。15分より早ければその時刻に更新を頼む
+function startOf(e, now) {
+  const [h, m] = e.start.split(":").map(Number);
+  const d = new Date(now); d.setHours(h, m, 0, 0);
+  return d;
+}
+// 次に表示が変わる時刻（今日の予定の開始時刻）。15分より早ければその時刻に更新を頼む
 function refreshTime(events, now) {
   let t = new Date(now.getTime() + 15 * 60 * 1000);
   if (!events) return t;
   for (const e of eventsOn(events, ymd(now))) {
-    if (!e.start || e.pos === "first" || e.pos === "middle") continue;
-    const [h, m] = (e.end || e.start).split(":").map(Number);
-    const d = new Date(now); d.setHours(h, m, 0, 0);
+    if (!e.start || e.pos === "middle" || e.pos === "last") continue;
+    const d = startOf(e, now);
     if (d > now && d < t) t = d;
   }
   return t;
