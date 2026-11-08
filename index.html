@@ -83,9 +83,8 @@
   .cell.sat .num { color: var(--sat); }
   .cell.out .num { color: var(--line); }
   .cell.out .chip { opacity: .35; }
-  .cell.today { background: var(--today); }
-  .cell.today .num { color: var(--accent); font-weight: 700; }
-  .cell.sel .num { background: var(--fg); color: var(--bg); font-weight: 700; }
+  .cell.sel { background: var(--today); }
+  .cell.today .num { background: var(--fg); color: var(--bg); font-weight: 700; }
   /* 予定の帯：時刻（上・小さめ）とタイトル（下）の2段。長いタイトルは右端で切る。
      文字は白で統一し、明るい色でも読めるようにごく薄い影を付ける */
   .chip {
@@ -2169,6 +2168,15 @@ LINEなどのグループトークで、次のような書き方の一覧はサ�
 - 持ち場・休憩・補足などは memo に入れてください。
 - category は "work" にしてください。
 
+【自分の勤務予定の一覧（シフト申請の画面）】
+日付ごとに「Standard」などの行と、その横に時刻や「FREE」が並ぶ自分だけの勤務予定の画面も、バイトの予定です。
+- 「07:00 - 14:00」のような時刻は、前を start、後ろを end にしてください。
+- 「FREE」と書かれた日は終日のバイトです。start と end は空文字にしてください。
+- 時刻に取り消し線が引かれている日は出勤なしなので、出さないでください。
+- 「+」だけで時刻のない日は出勤なしです。
+- 時刻の前にある「?」などの記号は無視してください。
+- title は「バイト」、category は "work"、shiftTable は null にしてください。
+
 【確定シフト表（複数人が並んだ表）】
 縦にスタッフ名、横に日付が並び、各マスに出勤・退勤の時刻が書かれた表は、バイトの確定シフト表です。
 ${rules.shiftName ? `- 読み取るのは「${rules.shiftName}」の行だけです。ほかの人の行は絶対に出さないでください。
@@ -3919,7 +3927,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v1.0";
+const APP_VERSION = "v1.1";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
