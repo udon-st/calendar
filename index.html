@@ -3122,6 +3122,22 @@ function cSlotsFrom(spec) {
   if (!C_ONLY_RE.test(t)) return null;
   return (t.match(C_ONE_SLOT_RE) || []).map(cSlot);
 }
+// 「13:00-15:00(た×),21-」のように、メモのあとにカンマで続く時間も別の候補として読む
+// 各候補に、前の区切り（sep）と、すぐあとのメモ（note）を持たせる
+function cSegs(rest) {
+  const re = new RegExp(String.raw`(^|[,、，]\s*)(${C_SLOT})`, "g");
+  const hits = [];
+  let m;
+  while ((m = re.exec(rest))) {
+    if (m[0] === "") { re.lastIndex++; continue; }
+    hits.push({ at: m.index, sep: m[1], raw: m[2], end: m.index + m[0].length });
+  }
+  return hits.map((h, k) => ({
+    ...cSlot(h.raw),
+    sep: h.sep,
+    note: rest.slice(h.end, k + 1 < hits.length ? hits[k + 1].at : rest.length),
+  }));
+}
 // 年が書かれていない日付は、今日に最も近い年にする
 function cDate(month, day) {
   const now = new Date();
@@ -3142,11 +3158,11 @@ function cParse(text) {
   for (const raw of lines) {
     const indent = raw.match(/^[\s　]*/)[0];
     let body = raw.slice(indent.length).replace(/\s+$/, "");
-    // 行全体がかっこで囲まれているとき（例：（2 15-16:30 あめ×））
+    // 行がかっこで始まるとき（例：（2 15-16:30 あめ×）、(9 19-) きゅた×）
     let open = "", close = "";
-    const pm = body.match(/^([（(])(.*?)([）)])$/);
+    const pm = body.match(/^([（(])([^（()）]*)([）)])(.*)$/);
     if (pm && (C_DAY_RE.test(pm[2].trim()) || C_CONT_RE.test(pm[2].trim()))) {
-      open = pm[1]; close = pm[3]; body = pm[2].trim();
+      open = pm[1]; close = pm[3] + pm[4]; body = pm[2].trim();
     }
     const mm = body.match(C_MONTH_RE);
     if (mm) { month = Number(mm[1]); day = null; items.push({ type: "month", raw }); continue; }
@@ -3155,8 +3171,8 @@ function cParse(text) {
       day = Number(m[1]);
       date = cDate(month, day);
       items.push({ type: "slot", raw, indent, open, close, day, date, isMain: true,
-        head: m[1] + m[2], slotsText: m[3], notes: m[4],
-        slots: (m[3].match(C_ONE_SLOT_RE) || []).map(cSlot) });
+        head: m[1] + m[2], slotsText: m[3] + m[4], notes: "",
+        slots: cSegs(m[3] + m[4]) });
       continue;
     }
     // 日付だけの行（終日空いている）
@@ -3172,8 +3188,8 @@ function cParse(text) {
     m = day ? body.match(C_CONT_RE) : null;
     if (m) {
       items.push({ type: "slot", raw, indent, open, close, day, date, isMain: false,
-        head: "", slotsText: m[1], notes: m[2],
-        slots: (m[1].match(C_ONE_SLOT_RE) || []).map(cSlot) });
+        head: "", slotsText: m[1] + m[2], notes: "",
+        slots: cSegs(m[1] + m[2]) });
       continue;
     }
     if (!body) day = null; // 空行で日の区切り
@@ -3639,7 +3655,7 @@ function cBuildReply() {
       if (it.type !== "slot") { out.push(it.raw); continue; }
       const ng = it.slots.filter((s) => s.state !== "ok");
       let extra = "";
-      if (ng.length && !it.notes.includes(mark)) {
+      if (ng.length && !(it.slotsText + it.notes).includes(mark)) {
         extra = ng.length === it.slots.length ? ` ${mark}` : ` ${mark}(${ng.map(cLabel).join(",")})`;
       }
       out.push(lineOf(it, it.head, it.slotsText, extra));
@@ -3662,7 +3678,9 @@ function cBuildReply() {
       const left = g.slots.filter((s) => s.state !== "ng");
       if (!left.length) continue;
       const changed = left.length !== g.slots.length || left.some((s) => s.state === "part");
-      const slotsText = changed ? left.map((s) => cSlotText(s, name)).join(sep(g.slotsText)) : g.slotsText;
+      const slotsText = changed
+        ? left.map((s, k) => (k ? (s.sep || sep(g.slotsText)) : "") + cSlotText(s, name) + (s.note || "")).join("").replace(/\s+$/, "")
+        : g.slotsText;
       if (needDate) {
         const head = g.isMain ? g.head : `${g.day} `;
         const indent = g.isMain ? g.indent : it.indent;
@@ -3927,7 +3945,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => syncNow());
 
 // ===== 版数（sw.js の VERSION と同じ値にそろえる） =====
-const APP_VERSION = "v1.1";
+const APP_VERSION = "v1.2";
 $("versionNote").textContent = `現在の版：${APP_VERSION}`;
 
 // ===== オフライン対応と更新 =====
